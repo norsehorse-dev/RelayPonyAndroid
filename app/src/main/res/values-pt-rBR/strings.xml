@@ -1,0 +1,171 @@
+<resources>
+
+    <!-- Navigation -->
+    <string name="nav_send">Enviar</string>
+    <string name="nav_receive">Receber</string>
+    <string name="nav_inbox">Caixa de entrada</string>
+    <string name="settings_title">Configurações</string>
+
+    <!-- Shared language picker -->
+    <string name="lang_selected">Selecionado</string>
+    <string name="lang_soon">Em breve</string>
+
+    <!-- Onboarding -->
+    <string name="ob_back">Voltar</string>
+    <string name="ob_skip">Pular</string>
+    <string name="ob_next">Avançar</string>
+    <string name="ob_get_started">Começar</string>
+    <string name="ob_welcome_body">Envie arquivos diretamente de um celular para outro. Criptografado de ponta a ponta. Sem nuvem, sem conta.</string>
+    <string name="ob_language_title">Escolha seu idioma</string>
+    <string name="ob_language_body">Mais idiomas estão a caminho. O inglês já está disponível.</string>
+    <string name="ob_how_title">Como funciona</string>
+    <string name="ob_how_body">Os arquivos vão diretamente entre os dois celulares, criptografados o tempo todo. Pareie uma vez escaneando um código QR e depois envie quando quiser.</string>
+    <string name="ob_send_demo">Enviar uma demonstração</string>
+    <string name="ob_send_again">Enviar novamente</string>
+    <string name="ob_delivered">Entregue, criptografado.</string>
+    <string name="ob_device_title">Tudo pronto</string>
+    <string name="ob_device_body">Este é o seu código de pareamento. Quando alguém quiser te enviar arquivos, basta escanear isto uma vez.</string>
+    <string name="ob_device_qr_desc">Seu QR de pareamento</string>
+    <string name="ob_this_device">Este dispositivo: %1$s</string>
+    <string name="ob_perms_title">Algumas permissões</string>
+    <string name="ob_perms_body">O RelayPony pede essas permissões apenas quando você usa o recurso que precisa delas:</string>
+    <string name="ob_perm_camera_title">Câmera</string>
+    <string name="ob_perm_camera_detail">Para escanear o código QR de um dispositivo ao parear.</string>
+    <string name="ob_perm_nearby_title">Dispositivos próximos</string>
+    <string name="ob_perm_nearby_detail">Para conectar diretamente quando não há Wi-Fi compartilhado.</string>
+    <string name="ob_perm_storage_title">Armazenamento</string>
+    <string name="ob_perm_storage_detail">Apenas se você optar por salvar os arquivos recebidos em Downloads.</string>
+    <!-- Settings -->
+    <string name="set_language">Idioma</string>
+    <string name="set_app_language">Idioma do app</string>
+    <string name="set_transfers">Transferências</string>
+    <string name="set_autosave_title">Salvar automaticamente em Downloads</string>
+    <string name="set_autosave_detail">Copiar os arquivos recebidos para Downloads automaticamente.</string>
+    <string name="set_autosave_perm">O salvamento automático precisa de permissão de armazenamento</string>
+    <string name="set_this_device">Este dispositivo</string>
+    <string name="set_name">Nome: %1$s</string>
+    <string name="set_key">Chave: %1$s</string>
+    <string name="set_more_apps">Mais da NorseHorse</string>
+    <string name="set_pgpony_desc">Criptografia OpenPGP para suas mensagens e arquivos</string>
+    <string name="set_agepony_desc">Criptografia de arquivos moderna com o protocolo age</string>
+    <string name="set_open_source">Código aberto</string>
+    <string name="set_source_title">Código-fonte</string>
+    <string name="set_source_desc">O RelayPony é de código aberto no GitHub</string>
+    <string name="set_about">Sobre</string>
+    <string name="set_about_desc">Transferência de arquivos criptografada ponto a ponto. Sem servidores, sem conta.</string>
+    <string name="set_replay">Ver a introdução novamente</string>
+    <string name="set_close">Fechar</string>
+    <!-- Send -->
+    <string name="send_files_title">Arquivos para enviar</string>
+    <string name="send_files_ready">%1$d arquivo(s) pronto(s)</string>
+    <string name="send_clear">Limpar</string>
+    <string name="send_add_more">Adicionar mais arquivos</string>
+    <string name="send_pick_files">Escolher arquivos para enviar</string>
+    <string name="send_or_share">Ou compartilhe no RelayPony pelo menu de compartilhamento de outro app.</string>
+    <string name="send_to_device_title">Enviar para um dispositivo</string>
+    <string name="send_refresh">Atualizar</string>
+    <string name="send_looking">Procurando dispositivos no seu Wi-Fi. Abra o outro celular na aba Receber e toque em Atualizar.</string>
+    <string name="send_paired">Pareado · no seu Wi-Fi</string>
+    <string name="send_not_paired">Ainda não pareado</string>
+    <string name="send_pair">Parear (escanear QR)</string>
+    <string name="send_send_files">Enviar %1$d arquivo(s) para %2$d dispositivo(s)</string>
+    <string name="send_pick_first">Escolha arquivos acima para enviar aos dispositivos selecionados.</string>
+    <string name="send_test_instead">Enviar um arquivo de teste em vez disso</string>
+    <string name="send_scan_prompt">Escaneie o QR do RelayPony do outro dispositivo</string>
+
+    <!-- Connect directly (Wi-Fi Direct) -->
+    <string name="wd_title">Conectar diretamente</string>
+    <string name="wd_subtitle">Não precisa de Wi-Fi compartilhado</string>
+    <string name="wd_state">Estado: %1$s</string>
+    <string name="wd_group_owner">Dono do grupo: %1$s</string>
+    <string name="wd_perm_msg">O Wi-Fi Direct precisa de permissão de localização/dispositivos próximos</string>
+    <string name="wd_transfer">Transferência: %1$s</string>
+    <string name="wd_find">Procurar dispositivos</string>
+    <string name="wd_disconnect">Desconectar</string>
+    <string name="wd_arm_send_n">Preparar envio (%1$d)</string>
+    <string name="wd_arm_send_test">Preparar envio (arquivo de teste)</string>
+    <string name="wd_arm_receive">Preparar recebimento</string>
+    <string name="wd_unnamed">(dispositivo sem nome)</string>
+    <string name="wd_connect">Conectar</string>
+    <string name="wd_collapse">Recolher</string>
+    <string name="wd_expand">Expandir</string>
+    <!-- Receive -->
+    <string name="rec_ready_title">Pronto para receber</string>
+    <string name="rec_ready_body">Outras pessoas no seu Wi-Fi já podem te enviar.</string>
+    <string name="rec_pair_title">Parear um novo dispositivo</string>
+    <string name="rec_pair_body">Peça para quem envia escanear este código uma vez. Depois disso, poderá te enviar a qualquer momento.</string>
+    <string name="rec_qr_desc">QR de pareamento</string>
+    <string name="rec_note_autosave">Os arquivos recebidos são salvos automaticamente em Downloads e aparecem na sua Caixa de entrada.</string>
+    <string name="rec_note_manual">Os arquivos recebidos aparecem na sua Caixa de entrada, onde você pode abri-los ou salvá-los.</string>
+
+    <!-- Inbox -->
+    <string name="inbox_perm_msg">Permissão de armazenamento negada</string>
+    <string name="inbox_empty">Os arquivos que te enviarem aparecem aqui. Abra a aba Receber e compartilhe seu QR para começar.</string>
+    <string name="inbox_header">Caixa de entrada · %1$d arquivo(s)</string>
+    <string name="inbox_size_from">%1$s · de %2$s</string>
+    <string name="inbox_open">Abrir</string>
+    <string name="inbox_saved">Salvo</string>
+    <string name="inbox_save">Salvar</string>
+    <string name="inbox_delete">Excluir</string>
+    <string name="inbox_delete_title">Excluir arquivo?</string>
+    <string name="inbox_delete_msg_saved">Remover «%1$s» da sua Caixa de entrada. Sua cópia salva em Downloads será mantida.</string>
+    <string name="inbox_delete_msg_plain">Remover «%1$s» da sua Caixa de entrada. Isso exclui a cópia recebida.</string>
+    <string name="inbox_cancel">Cancelar</string>
+    <!-- Controller status (transient) -->
+    <string name="st_idle">Inativo</string>
+    <string name="st_autosave_on">O salvamento automático em Downloads está ativado</string>
+    <string name="st_autosave_off">Salvamento automático desativado</string>
+    <string name="st_saved_dl">%1$s salvo em Downloads</string>
+    <string name="st_save_failed">Falha ao salvar: %1$s</string>
+    <string name="st_ready_send">Pronto para enviar %1$d arquivo(s) — escolha dispositivos pareados</string>
+    <string name="st_cleared">Arquivos preparados limpos</string>
+    <string name="st_read_failed">Não foi possível ler os arquivos selecionados</string>
+    <string name="st_paired_with">Pareado com %1$s</string>
+    <string name="st_pairing_failed">Falha no pareamento: não é um QR do RelayPony</string>
+    <string name="st_received">%1$d arquivo(s) recebido(s) de %2$s</string>
+    <string name="st_receiver_stopped">Receptor parado: %1$s</string>
+    <string name="st_listening">Ouvindo em %1$d, anunciando como %2$s</string>
+    <string name="st_discovering">Procurando pares…</string>
+    <string name="st_select_one">Selecione pelo menos um dispositivo pareado</string>
+    <string name="st_sending_to">Enviando para %1$d dispositivo(s)…</string>
+    <string name="st_group_finished">Envio em grupo concluído (%1$d dispositivo(s))</string>
+    <string name="st_removed">%1$s removido</string>
+    <string name="st_open_failed">Não é possível abrir %1$s: %2$s</string>
+    <string name="st_sending">Enviando…</string>
+    <string name="st_sent">Enviado</string>
+    <string name="st_failed">Falhou: %1$s</string>
+    <string name="st_wifi_armed_send">Pronto para ENVIAR — agora conecte-se ao receptor abaixo</string>
+    <string name="st_wifi_armed_recv">Pronto para RECEBER — agora conecte-se a partir do remetente abaixo</string>
+    <string name="st_wifi_not_paired">Não pareado com %1$s — escaneie primeiro o QR dele e tente novamente</string>
+    <string name="st_wifi_failed">Falha na transferência por Wi-Fi Direct: %1$s</string>
+    <string name="st_wifi_exchanging">Trocando identidades…</string>
+    <string name="st_wifi_sending">Enviando %1$d arquivo(s) para %2$s…</string>
+    <string name="st_wifi_sent">%1$d arquivo(s) enviado(s) para %2$s por Wi-Fi Direct</string>
+    <string name="st_wifi_receiving">Recebendo de %1$s…</string>
+    <string name="st_wifi_received">%1$d arquivo(s) recebido(s) de %2$s por Wi-Fi Direct</string>
+    <!-- Wi-Fi Direct connection state (manager) -->
+    <string name="wd_not_connected">Não conectado</string>
+    <string name="wd_connecting">Conectando a %1$s…</string>
+    <string name="wd_busy_retry">Framework ocupado, tentando novamente… (%1$d)</string>
+    <string name="wd_connected_owner">Conectado · este dispositivo é o dono do grupo</string>
+    <string name="wd_connected_client">Conectado · cliente de %1$s</string>
+    <string name="wd_discover_failed">Falha na busca (%1$s)</string>
+    <string name="wd_connect_failed">Falha ao conectar (%1$s)</string>
+    <string name="wd_reason_unsupported">Wi-Fi Direct não suportado neste dispositivo</string>
+    <string name="wd_reason_busy">framework ocupado, tente novamente</string>
+    <string name="wd_reason_internal">erro interno</string>
+    <string name="wd_reason_other">motivo %1$d</string>
+
+    <!-- Theme -->
+    <string name="set_theme">Tema</string>
+    <string name="set_theme_system">Padrão do sistema</string>
+    <string name="set_theme_light">Claro</string>
+    <string name="set_theme_dark">Escuro</string>
+    <string name="st_receive_interrupted">Transferência interrompida — ainda ouvindo</string>
+    <string name="rec_paused_title">Recebimento pausado</string>
+    <string name="rec_paused_body">Você não está visível agora. Inicie para ouvir novamente.</string>
+    <string name="rec_stop">Parar recebimento</string>
+    <string name="rec_start">Iniciar recebimento</string>
+    <string name="rec_receiving">Recebendo…</string>
+    <string name="st_send_retrying">Conexão perdida, tentando novamente… (%1$d)</string>
+</resources>

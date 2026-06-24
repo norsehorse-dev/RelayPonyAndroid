@@ -1,0 +1,171 @@
+<resources>
+
+    <!-- Navigation -->
+    <string name="nav_send">送信</string>
+    <string name="nav_receive">受信</string>
+    <string name="nav_inbox">受信ボックス</string>
+    <string name="settings_title">設定</string>
+
+    <!-- Shared language picker -->
+    <string name="lang_selected">選択済み</string>
+    <string name="lang_soon">近日</string>
+
+    <!-- Onboarding -->
+    <string name="ob_back">戻る</string>
+    <string name="ob_skip">スキップ</string>
+    <string name="ob_next">次へ</string>
+    <string name="ob_get_started">始める</string>
+    <string name="ob_welcome_body">ファイルを一方のスマホからもう一方へ直接送ります。エンドツーエンドで暗号化。クラウドもアカウントも不要です。</string>
+    <string name="ob_language_title">言語を選択</string>
+    <string name="ob_language_body">ほかの言語も近日対応予定です。英語はすでに利用できます。</string>
+    <string name="ob_how_title">仕組み</string>
+    <string name="ob_how_body">ファイルは2台のスマホ間を直接、ずっと暗号化されたまま移動します。QRコードを一度スキャンしてペア設定すれば、いつでも送信できます。</string>
+    <string name="ob_send_demo">デモを送信</string>
+    <string name="ob_send_again">もう一度送信</string>
+    <string name="ob_delivered">配信完了、暗号化済み。</string>
+    <string name="ob_device_title">準備完了</string>
+    <string name="ob_device_body">これはあなたのペアリングコードです。誰かがファイルを送りたいときは、これを一度スキャンします。</string>
+    <string name="ob_device_qr_desc">あなたのペアリングQR</string>
+    <string name="ob_this_device">この端末: %1$s</string>
+    <string name="ob_perms_title">いくつかの権限</string>
+    <string name="ob_perms_body">RelayPonyは、それを必要とする機能を使うときだけこれらを求めます:</string>
+    <string name="ob_perm_camera_title">カメラ</string>
+    <string name="ob_perm_camera_detail">ペア設定時に端末のQRコードをスキャンするため。</string>
+    <string name="ob_perm_nearby_title">近くの端末</string>
+    <string name="ob_perm_nearby_detail">共有Wi-Fiがないときに直接接続するため。</string>
+    <string name="ob_perm_storage_title">ストレージ</string>
+    <string name="ob_perm_storage_detail">受信したファイルをダウンロードに保存する場合のみ。</string>
+    <!-- Settings -->
+    <string name="set_language">言語</string>
+    <string name="set_app_language">アプリの言語</string>
+    <string name="set_transfers">転送</string>
+    <string name="set_autosave_title">ダウンロードに自動保存</string>
+    <string name="set_autosave_detail">受信したファイルを自動でダウンロードにコピーします。</string>
+    <string name="set_autosave_perm">自動保存にはストレージ権限が必要です</string>
+    <string name="set_this_device">この端末</string>
+    <string name="set_name">名前: %1$s</string>
+    <string name="set_key">鍵: %1$s</string>
+    <string name="set_more_apps">NorseHorseのその他のアプリ</string>
+    <string name="set_pgpony_desc">メッセージとファイルのためのOpenPGP暗号化</string>
+    <string name="set_agepony_desc">ageプロトコルによる最新のファイル暗号化</string>
+    <string name="set_open_source">オープンソース</string>
+    <string name="set_source_title">ソースコード</string>
+    <string name="set_source_desc">RelayPonyはGitHubでオープンソースです</string>
+    <string name="set_about">アプリについて</string>
+    <string name="set_about_desc">暗号化されたピアツーピアのファイル転送。サーバーもアカウントもありません。</string>
+    <string name="set_replay">イントロをもう一度見る</string>
+    <string name="set_close">閉じる</string>
+    <!-- Send -->
+    <string name="send_files_title">送信するファイル</string>
+    <string name="send_files_ready">%1$d 件のファイルが準備完了</string>
+    <string name="send_clear">クリア</string>
+    <string name="send_add_more">ファイルを追加</string>
+    <string name="send_pick_files">送信するファイルを選択</string>
+    <string name="send_or_share">または他のアプリの共有メニューからRelayPonyに共有してください。</string>
+    <string name="send_to_device_title">端末に送信</string>
+    <string name="send_refresh">更新</string>
+    <string name="send_looking">Wi-Fi上の端末を探しています。もう一方のスマホで受信タブを開き、更新をタップしてください。</string>
+    <string name="send_paired">ペア済み · あなたのWi-Fi上</string>
+    <string name="send_not_paired">未ペア</string>
+    <string name="send_pair">ペア設定（QRをスキャン）</string>
+    <string name="send_send_files">%1$d 件のファイルを %2$d 台の端末に送信</string>
+    <string name="send_pick_first">上でファイルを選び、選択した端末に送信してください。</string>
+    <string name="send_test_instead">代わりにテストファイルを送信</string>
+    <string name="send_scan_prompt">もう一方の端末のRelayPony QRをスキャンしてください</string>
+
+    <!-- Connect directly (Wi-Fi Direct) -->
+    <string name="wd_title">直接接続</string>
+    <string name="wd_subtitle">共有Wi-Fiは不要</string>
+    <string name="wd_state">状態: %1$s</string>
+    <string name="wd_group_owner">グループオーナー: %1$s</string>
+    <string name="wd_perm_msg">Wi-Fi Directには位置情報／近くの端末の権限が必要です</string>
+    <string name="wd_transfer">転送: %1$s</string>
+    <string name="wd_find">端末を探す</string>
+    <string name="wd_disconnect">切断</string>
+    <string name="wd_arm_send_n">送信を準備 (%1$d)</string>
+    <string name="wd_arm_send_test">送信を準備（テストファイル）</string>
+    <string name="wd_arm_receive">受信を準備</string>
+    <string name="wd_unnamed">（名前のない端末）</string>
+    <string name="wd_connect">接続</string>
+    <string name="wd_collapse">折りたたむ</string>
+    <string name="wd_expand">展開</string>
+    <!-- Receive -->
+    <string name="rec_ready_title">受信の準備完了</string>
+    <string name="rec_ready_body">Wi-Fi上の他の人が今あなたに送信できます。</string>
+    <string name="rec_pair_title">新しい端末をペア設定</string>
+    <string name="rec_pair_body">送信者にこのコードを一度スキャンしてもらいます。その後はいつでも送信できます。</string>
+    <string name="rec_qr_desc">ペアリングQR</string>
+    <string name="rec_note_autosave">受信したファイルは自動でダウンロードに保存され、受信ボックスに表示されます。</string>
+    <string name="rec_note_manual">受信したファイルは受信ボックスに表示され、開いたり保存したりできます。</string>
+
+    <!-- Inbox -->
+    <string name="inbox_perm_msg">ストレージ権限が拒否されました</string>
+    <string name="inbox_empty">送られてきたファイルがここに表示されます。受信タブを開いてQRを共有して始めましょう。</string>
+    <string name="inbox_header">受信ボックス · %1$d 件</string>
+    <string name="inbox_size_from">%1$s · %2$s から</string>
+    <string name="inbox_open">開く</string>
+    <string name="inbox_saved">保存済み</string>
+    <string name="inbox_save">保存</string>
+    <string name="inbox_delete">削除</string>
+    <string name="inbox_delete_title">ファイルを削除しますか？</string>
+    <string name="inbox_delete_msg_saved">「%1$s」を受信ボックスから削除します。ダウンロード内の保存済みのコピーは残ります。</string>
+    <string name="inbox_delete_msg_plain">「%1$s」を受信ボックスから削除します。受信したコピーが削除されます。</string>
+    <string name="inbox_cancel">キャンセル</string>
+    <!-- Controller status (transient) -->
+    <string name="st_idle">待機中</string>
+    <string name="st_autosave_on">ダウンロードへの自動保存がオンです</string>
+    <string name="st_autosave_off">自動保存はオフ</string>
+    <string name="st_saved_dl">%1$s をダウンロードに保存しました</string>
+    <string name="st_save_failed">保存に失敗しました: %1$s</string>
+    <string name="st_ready_send">%1$d 件のファイルを送信する準備ができました — ペア済みの端末を選択</string>
+    <string name="st_cleared">準備したファイルをクリアしました</string>
+    <string name="st_read_failed">選択したファイルを読み取れませんでした</string>
+    <string name="st_paired_with">%1$s とペアになりました</string>
+    <string name="st_pairing_failed">ペア設定に失敗しました: RelayPony QRではありません</string>
+    <string name="st_received">%2$s から %1$d 件のファイルを受信しました</string>
+    <string name="st_receiver_stopped">受信を停止しました: %1$s</string>
+    <string name="st_listening">%1$d で待機中、%2$s として通知中</string>
+    <string name="st_discovering">ピアを探しています…</string>
+    <string name="st_select_one">ペア済みの端末を少なくとも1台選択してください</string>
+    <string name="st_sending_to">%1$d 台の端末に送信中…</string>
+    <string name="st_group_finished">グループ送信が完了しました (%1$d 台)</string>
+    <string name="st_removed">%1$s を削除しました</string>
+    <string name="st_open_failed">%1$s を開けません: %2$s</string>
+    <string name="st_sending">送信中…</string>
+    <string name="st_sent">送信済み</string>
+    <string name="st_failed">失敗: %1$s</string>
+    <string name="st_wifi_armed_send">送信の準備完了 — 下の受信者に接続してください</string>
+    <string name="st_wifi_armed_recv">受信の準備完了 — 下の送信者から接続してください</string>
+    <string name="st_wifi_not_paired">%1$s とペアになっていません — 先にそのQRをスキャンして再試行してください</string>
+    <string name="st_wifi_failed">Wi-Fi Direct転送に失敗しました: %1$s</string>
+    <string name="st_wifi_exchanging">識別情報を交換中…</string>
+    <string name="st_wifi_sending">%2$s に %1$d 件のファイルを送信中…</string>
+    <string name="st_wifi_sent">%2$s に %1$d 件のファイルをWi-Fi Directで送信しました</string>
+    <string name="st_wifi_receiving">%1$s から受信中…</string>
+    <string name="st_wifi_received">%2$s から %1$d 件のファイルをWi-Fi Directで受信しました</string>
+    <!-- Wi-Fi Direct connection state (manager) -->
+    <string name="wd_not_connected">未接続</string>
+    <string name="wd_connecting">%1$s に接続中…</string>
+    <string name="wd_busy_retry">フレームワークがビジー、再試行中… (%1$d)</string>
+    <string name="wd_connected_owner">接続済み · この端末がグループオーナーです</string>
+    <string name="wd_connected_client">接続済み · %1$s のクライアント</string>
+    <string name="wd_discover_failed">検出に失敗しました (%1$s)</string>
+    <string name="wd_connect_failed">接続に失敗しました (%1$s)</string>
+    <string name="wd_reason_unsupported">この端末はWi-Fi Directに対応していません</string>
+    <string name="wd_reason_busy">フレームワークがビジーです、もう一度お試しください</string>
+    <string name="wd_reason_internal">内部エラー</string>
+    <string name="wd_reason_other">理由 %1$d</string>
+
+    <!-- Theme -->
+    <string name="set_theme">テーマ</string>
+    <string name="set_theme_system">システムのデフォルト</string>
+    <string name="set_theme_light">ライト</string>
+    <string name="set_theme_dark">ダーク</string>
+    <string name="st_receive_interrupted">転送が中断されました — まだ待機中</string>
+    <string name="rec_paused_title">受信を一時停止</string>
+    <string name="rec_paused_body">現在は検出されません。もう一度待機するには開始してください。</string>
+    <string name="rec_stop">受信を停止</string>
+    <string name="rec_start">受信を開始</string>
+    <string name="rec_receiving">受信中…</string>
+    <string name="st_send_retrying">接続が切れました、再試行中… (%1$d)</string>
+</resources>

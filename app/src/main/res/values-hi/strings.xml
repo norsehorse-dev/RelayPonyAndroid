@@ -1,0 +1,167 @@
+<resources>
+    <string name="nav_send">भेजें</string>
+    <string name="nav_receive">प्राप्त करें</string>
+    <string name="nav_inbox">इनबॉक्स</string>
+    <string name="settings_title">सेटिंग्स</string>
+
+    <string name="lang_selected">चयनित</string>
+    <string name="lang_soon">जल्द</string>
+
+    <string name="ob_back">वापस</string>
+    <string name="ob_skip">छोड़ें</string>
+    <string name="ob_next">आगे</string>
+    <string name="ob_get_started">शुरू करें</string>
+    <string name="ob_welcome_body">फ़ाइलें सीधे एक फ़ोन से दूसरे फ़ोन पर भेजें। पूरी तरह एन्क्रिप्टेड। कोई क्लाउड नहीं, कोई खाता नहीं।</string>
+    <string name="ob_language_title">अपनी भाषा चुनें</string>
+    <string name="ob_language_body">और भाषाएँ जल्द आ रही हैं। अंग्रेज़ी अभी उपलब्ध है।</string>
+    <string name="ob_how_title">यह कैसे काम करता है</string>
+    <string name="ob_how_body">फ़ाइलें दोनों फ़ोनों के बीच सीधे जाती हैं, पूरे रास्ते एन्क्रिप्टेड। एक बार QR कोड स्कैन करके पेयर करें, फिर कभी भी भेजें।</string>
+    <string name="ob_send_demo">डेमो भेजें</string>
+    <string name="ob_send_again">फिर भेजें</string>
+    <string name="ob_delivered">पहुँच गया, एन्क्रिप्टेड।</string>
+    <string name="ob_device_title">आप तैयार हैं</string>
+    <string name="ob_device_body">यह आपका पेयरिंग कोड है। जब कोई आपको फ़ाइलें भेजना चाहे, तो वह इसे एक बार स्कैन करता है।</string>
+    <string name="ob_device_qr_desc">आपका पेयरिंग QR</string>
+    <string name="ob_this_device">यह डिवाइस: %1$s</string>
+    <string name="ob_perms_title">कुछ अनुमतियाँ</string>
+    <string name="ob_perms_body">RelayPony ये अनुमतियाँ केवल तब माँगता है जब आप उस सुविधा का उपयोग करते हैं जिसे इनकी ज़रूरत होती है:</string>
+    <string name="ob_perm_camera_title">कैमरा</string>
+    <string name="ob_perm_camera_detail">पेयरिंग के समय किसी डिवाइस का QR कोड स्कैन करने के लिए।</string>
+    <string name="ob_perm_nearby_title">नज़दीकी डिवाइस</string>
+    <string name="ob_perm_nearby_detail">जब साझा Wi-Fi न हो तो सीधे कनेक्ट करने के लिए।</string>
+    <string name="ob_perm_storage_title">स्टोरेज</string>
+    <string name="ob_perm_storage_detail">केवल तभी जब आप प्राप्त फ़ाइलें Downloads में सहेजना चुनें।</string>
+    <!-- Settings -->
+    <string name="set_language">भाषा</string>
+    <string name="set_app_language">ऐप भाषा</string>
+    <string name="set_transfers">ट्रांसफ़र</string>
+    <string name="set_autosave_title">Downloads में ऑटो-सेव</string>
+    <string name="set_autosave_detail">प्राप्त फ़ाइलें अपने आप Downloads में कॉपी करें।</string>
+    <string name="set_autosave_perm">ऑटो-सेव के लिए स्टोरेज अनुमति चाहिए</string>
+    <string name="set_this_device">यह डिवाइस</string>
+    <string name="set_name">नाम: %1$s</string>
+    <string name="set_key">कुंजी: %1$s</string>
+    <string name="set_more_apps">NorseHorse से और भी</string>
+    <string name="set_pgpony_desc">आपके संदेशों और फ़ाइलों के लिए OpenPGP एन्क्रिप्शन</string>
+    <string name="set_agepony_desc">age प्रोटोकॉल के साथ आधुनिक फ़ाइल एन्क्रिप्शन</string>
+    <string name="set_open_source">ओपन सोर्स</string>
+    <string name="set_source_title">सोर्स कोड</string>
+    <string name="set_source_desc">RelayPony GitHub पर ओपन सोर्स है</string>
+    <string name="set_about">परिचय</string>
+    <string name="set_about_desc">एन्क्रिप्टेड पीयर-टू-पीयर फ़ाइल ट्रांसफ़र। कोई सर्वर नहीं, कोई खाता नहीं।</string>
+    <string name="set_replay">परिचय फिर देखें</string>
+    <string name="set_close">बंद करें</string>
+    <!-- Send -->
+    <string name="send_files_title">भेजने के लिए फ़ाइलें</string>
+    <string name="send_files_ready">%1$d फ़ाइल तैयार</string>
+    <string name="send_clear">साफ़ करें</string>
+    <string name="send_add_more">और फ़ाइलें जोड़ें</string>
+    <string name="send_pick_files">भेजने के लिए फ़ाइलें चुनें</string>
+    <string name="send_or_share">या किसी अन्य ऐप के शेयर मेन्यू से RelayPony में शेयर करें।</string>
+    <string name="send_to_device_title">किसी डिवाइस को भेजें</string>
+    <string name="send_refresh">ताज़ा करें</string>
+    <string name="send_looking">आपके Wi-Fi पर डिवाइस खोजे जा रहे हैं। दूसरे फ़ोन को उसके प्राप्त करें टैब पर खोलें, फिर ताज़ा करें दबाएँ।</string>
+    <string name="send_paired">पेयर्ड \u00b7 आपके Wi-Fi पर</string>
+    <string name="send_not_paired">अभी पेयर नहीं</string>
+    <string name="send_pair">पेयर करें (QR स्कैन)</string>
+    <string name="send_send_files">%2$d डिवाइस को %1$d फ़ाइल भेजें</string>
+    <string name="send_pick_first">चयनित डिवाइस को भेजने के लिए ऊपर फ़ाइलें चुनें।</string>
+    <string name="send_test_instead">इसके बजाय एक टेस्ट फ़ाइल भेजें</string>
+    <string name="send_scan_prompt">दूसरे डिवाइस का RelayPony QR स्कैन करें</string>
+
+    <!-- Connect directly (Wi-Fi Direct) -->
+    <string name="wd_title">सीधे कनेक्ट करें</string>
+    <string name="wd_subtitle">साझा Wi-Fi की ज़रूरत नहीं</string>
+    <string name="wd_state">स्थिति: %1$s</string>
+    <string name="wd_group_owner">ग्रुप ओनर: %1$s</string>
+    <string name="wd_perm_msg">Wi-Fi Direct को स्थान/नज़दीकी अनुमति चाहिए</string>
+    <string name="wd_transfer">ट्रांसफ़र: %1$s</string>
+    <string name="wd_find">डिवाइस खोजें</string>
+    <string name="wd_disconnect">डिस्कनेक्ट</string>
+    <string name="wd_arm_send_n">भेजने के लिए तैयार (%1$d)</string>
+    <string name="wd_arm_send_test">भेजने के लिए तैयार (टेस्ट फ़ाइल)</string>
+    <string name="wd_arm_receive">प्राप्त करने के लिए तैयार</string>
+    <string name="wd_unnamed">(अनाम डिवाइस)</string>
+    <string name="wd_connect">कनेक्ट</string>
+    <string name="wd_collapse">संक्षिप्त करें</string>
+    <string name="wd_expand">विस्तृत करें</string>
+    <!-- Receive -->
+    <string name="rec_ready_title">प्राप्त करने के लिए तैयार</string>
+    <string name="rec_ready_body">आपके Wi-Fi पर मौजूद लोग अब आपको भेज सकते हैं।</string>
+    <string name="rec_pair_title">नया डिवाइस पेयर करें</string>
+    <string name="rec_pair_body">भेजने वाले से यह कोड एक बार स्कैन करवाएँ। उसके बाद वे आपको कभी भी भेज सकते हैं।</string>
+    <string name="rec_qr_desc">पेयरिंग QR</string>
+    <string name="rec_note_autosave">प्राप्त फ़ाइलें अपने आप Downloads में सहेजी जाती हैं और आपके इनबॉक्स में दिखती हैं।</string>
+    <string name="rec_note_manual">प्राप्त फ़ाइलें आपके इनबॉक्स में दिखती हैं, जहाँ आप उन्हें खोल या सहेज सकते हैं।</string>
+
+    <!-- Inbox -->
+    <string name="inbox_perm_msg">स्टोरेज अनुमति अस्वीकृत</string>
+    <string name="inbox_empty">लोग जो फ़ाइलें आपको भेजते हैं वे यहाँ दिखती हैं। शुरू करने के लिए प्राप्त करें टैब खोलें और अपना QR शेयर करें।</string>
+    <string name="inbox_header">इनबॉक्स \u00b7 %1$d फ़ाइल</string>
+    <string name="inbox_size_from">%1$s \u00b7 %2$s से</string>
+    <string name="inbox_open">खोलें</string>
+    <string name="inbox_saved">सहेजा गया</string>
+    <string name="inbox_save">सहेजें</string>
+    <string name="inbox_delete">हटाएँ</string>
+    <string name="inbox_delete_title">फ़ाइल हटाएँ?</string>
+    <string name="inbox_delete_msg_saved">इनबॉक्स से \"%1$s\" हटाएँ। Downloads में आपकी सहेजी गई कॉपी बनी रहेगी।</string>
+    <string name="inbox_delete_msg_plain">इनबॉक्स से \"%1$s\" हटाएँ। यह प्राप्त कॉपी को मिटा देता है।</string>
+    <string name="inbox_cancel">रद्द करें</string>
+    <!-- Controller status (transient) -->
+    <string name="st_idle">निष्क्रिय</string>
+    <string name="st_autosave_on">Downloads में ऑटो-सेव चालू है</string>
+    <string name="st_autosave_off">ऑटो-सेव बंद</string>
+    <string name="st_saved_dl">%1$s को Downloads में सहेजा गया</string>
+    <string name="st_save_failed">सहेजना विफल: %1$s</string>
+    <string name="st_ready_send">%1$d फ़ाइल भेजने के लिए तैयार \u2014 पेयर किए गए डिवाइस चुनें</string>
+    <string name="st_cleared">स्टेज की गई फ़ाइलें साफ़ कीं</string>
+    <string name="st_read_failed">चयनित फ़ाइलें पढ़ी नहीं जा सकीं</string>
+    <string name="st_paired_with">%1$s के साथ पेयर हुआ</string>
+    <string name="st_pairing_failed">पेयरिंग विफल: यह RelayPony QR नहीं है</string>
+    <string name="st_received">%2$s से %1$d फ़ाइल प्राप्त हुईं</string>
+    <string name="st_receiver_stopped">रिसीवर रुका: %1$s</string>
+    <string name="st_listening">%1$d पर सुन रहा है, %2$s के रूप में विज्ञापित</string>
+    <string name="st_discovering">पीयर खोजे जा रहे हैं\u2026</string>
+    <string name="st_select_one">कम से कम एक पेयर किया गया डिवाइस चुनें</string>
+    <string name="st_sending_to">%1$d डिवाइस को भेजा जा रहा है\u2026</string>
+    <string name="st_group_finished">ग्रुप भेजना पूरा हुआ (%1$d डिवाइस)</string>
+    <string name="st_removed">%1$s हटाया गया</string>
+    <string name="st_open_failed">%1$s नहीं खुल सका: %2$s</string>
+    <string name="st_sending">भेजा जा रहा है\u2026</string>
+    <string name="st_sent">भेजा गया</string>
+    <string name="st_failed">विफल: %1$s</string>
+    <string name="st_wifi_armed_send">भेजने के लिए तैयार \u2014 अब नीचे रिसीवर से कनेक्ट करें</string>
+    <string name="st_wifi_armed_recv">प्राप्त करने के लिए तैयार \u2014 अब नीचे भेजने वाले से कनेक्ट करें</string>
+    <string name="st_wifi_not_paired">%1$s के साथ पेयर नहीं \u2014 पहले उसका QR स्कैन करें, फिर पुनः प्रयास करें</string>
+    <string name="st_wifi_failed">Wi-Fi Direct ट्रांसफ़र विफल: %1$s</string>
+    <string name="st_wifi_exchanging">पहचान का आदान-प्रदान हो रहा है\u2026</string>
+    <string name="st_wifi_sending">%2$s को %1$d फ़ाइल भेजी जा रही हैं\u2026</string>
+    <string name="st_wifi_sent">%2$s को %1$d फ़ाइल Wi-Fi Direct के ज़रिए भेजी गईं</string>
+    <string name="st_wifi_receiving">%1$s से प्राप्त हो रहा है\u2026</string>
+    <string name="st_wifi_received">%2$s से %1$d फ़ाइल Wi-Fi Direct के ज़रिए प्राप्त हुईं</string>
+    <!-- Wi-Fi Direct connection state (manager) -->
+    <string name="wd_not_connected">कनेक्ट नहीं</string>
+    <string name="wd_connecting">%1$s से कनेक्ट हो रहा है\u2026</string>
+    <string name="wd_busy_retry">फ़्रेमवर्क व्यस्त, पुनः प्रयास\u2026 (%1$d)</string>
+    <string name="wd_connected_owner">कनेक्ट हुआ \u00b7 यह डिवाइस ग्रुप ओनर है</string>
+    <string name="wd_connected_client">कनेक्ट हुआ \u00b7 %1$s का क्लाइंट</string>
+    <string name="wd_discover_failed">खोज विफल (%1$s)</string>
+    <string name="wd_connect_failed">कनेक्ट विफल (%1$s)</string>
+    <string name="wd_reason_unsupported">इस डिवाइस पर Wi-Fi Direct असमर्थित</string>
+    <string name="wd_reason_busy">फ़्रेमवर्क व्यस्त, फिर से प्रयास करें</string>
+    <string name="wd_reason_internal">आंतरिक त्रुटि</string>
+    <string name="wd_reason_other">कारण %1$d</string>
+
+    <!-- Theme -->
+    <string name="set_theme">थीम</string>
+    <string name="set_theme_system">सिस्टम डिफ़ॉल्ट</string>
+    <string name="set_theme_light">लाइट</string>
+    <string name="set_theme_dark">डार्क</string>
+    <string name="st_receive_interrupted">ट्रांसफ़र बाधित हुआ — अभी भी सुन रहा है</string>
+    <string name="rec_paused_title">प्राप्ति रोकी गई</string>
+    <string name="rec_paused_body">आप अभी खोजे जाने योग्य नहीं हैं। फिर से सुनने के लिए शुरू करें।</string>
+    <string name="rec_stop">प्राप्ति रोकें</string>
+    <string name="rec_start">प्राप्ति शुरू करें</string>
+    <string name="rec_receiving">प्राप्त हो रहा है…</string>
+    <string name="st_send_retrying">कनेक्शन टूटा, पुनः प्रयास… (%1$d)</string>
+</resources>

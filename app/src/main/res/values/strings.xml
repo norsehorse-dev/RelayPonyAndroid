@@ -1,0 +1,172 @@
+<resources>
+    <string name="app_name">RelayPony</string>
+
+    <!-- Navigation -->
+    <string name="nav_send">Send</string>
+    <string name="nav_receive">Receive</string>
+    <string name="nav_inbox">Inbox</string>
+    <string name="settings_title">Settings</string>
+
+    <!-- Shared language picker -->
+    <string name="lang_selected">Selected</string>
+    <string name="lang_soon">Soon</string>
+
+    <!-- Onboarding -->
+    <string name="ob_back">Back</string>
+    <string name="ob_skip">Skip</string>
+    <string name="ob_next">Next</string>
+    <string name="ob_get_started">Get started</string>
+    <string name="ob_welcome_body">Send files straight from one phone to another. Encrypted end to end. No cloud, no account.</string>
+    <string name="ob_language_title">Choose your language</string>
+    <string name="ob_language_body">More languages are on the way. English is available now.</string>
+    <string name="ob_how_title">How it works</string>
+    <string name="ob_how_body">Files travel directly between the two phones, encrypted the whole way. Pair once by scanning a QR code, then send any time.</string>
+    <string name="ob_send_demo">Send a demo</string>
+    <string name="ob_send_again">Send again</string>
+    <string name="ob_delivered">Delivered, encrypted.</string>
+    <string name="ob_device_title">You\'re set up</string>
+    <string name="ob_device_body">This is your pairing code. When someone wants to send you files, they scan this once.</string>
+    <string name="ob_device_qr_desc">Your pairing QR</string>
+    <string name="ob_this_device">This device: %1$s</string>
+    <string name="ob_perms_title">A few permissions</string>
+    <string name="ob_perms_body">RelayPony asks for these only when you use the feature that needs them:</string>
+    <string name="ob_perm_camera_title">Camera</string>
+    <string name="ob_perm_camera_detail">To scan a device\'s QR code when pairing.</string>
+    <string name="ob_perm_nearby_title">Nearby devices</string>
+    <string name="ob_perm_nearby_detail">To connect directly when there\'s no shared Wi-Fi.</string>
+    <string name="ob_perm_storage_title">Storage</string>
+    <string name="ob_perm_storage_detail">Only if you choose to save received files to Downloads.</string>
+    <!-- Settings -->
+    <string name="set_language">Language</string>
+    <string name="set_app_language">App language</string>
+    <string name="set_transfers">Transfers</string>
+    <string name="set_autosave_title">Auto-save to Downloads</string>
+    <string name="set_autosave_detail">Copy received files into Downloads automatically.</string>
+    <string name="set_autosave_perm">Auto-save needs storage permission</string>
+    <string name="set_this_device">This device</string>
+    <string name="set_name">Name: %1$s</string>
+    <string name="set_key">Key: %1$s</string>
+    <string name="set_more_apps">More from NorseHorse</string>
+    <string name="set_pgpony_desc">OpenPGP encryption for your messages and files</string>
+    <string name="set_agepony_desc">Modern file encryption with the age protocol</string>
+    <string name="set_open_source">Open source</string>
+    <string name="set_source_title">Source code</string>
+    <string name="set_source_desc">RelayPony is open source on GitHub</string>
+    <string name="set_about">About</string>
+    <string name="set_about_desc">Encrypted peer-to-peer file transfer. No servers, no account.</string>
+    <string name="set_replay">Replay intro</string>
+    <string name="set_close">Close</string>
+    <!-- Send -->
+    <string name="send_files_title">Files to send</string>
+    <string name="send_files_ready">%1$d file(s) ready</string>
+    <string name="send_clear">Clear</string>
+    <string name="send_add_more">Add more files</string>
+    <string name="send_pick_files">Pick files to send</string>
+    <string name="send_or_share">Or share into RelayPony from another app\'s share menu.</string>
+    <string name="send_to_device_title">Send to a device</string>
+    <string name="send_refresh">Refresh</string>
+    <string name="send_looking">Looking for devices on your Wi-Fi. Open the other phone on its Receive tab, then tap Refresh.</string>
+    <string name="send_paired">Paired \u00b7 on your Wi-Fi</string>
+    <string name="send_not_paired">Not paired yet</string>
+    <string name="send_pair">Pair (scan QR)</string>
+    <string name="send_send_files">Send %1$d file(s) to %2$d device(s)</string>
+    <string name="send_pick_first">Pick files above to send to the selected device(s).</string>
+    <string name="send_test_instead">Send a test file instead</string>
+    <string name="send_scan_prompt">Scan the other device\'s RelayPony QR</string>
+
+    <!-- Connect directly (Wi-Fi Direct) -->
+    <string name="wd_title">Connect directly</string>
+    <string name="wd_subtitle">No shared Wi-Fi needed</string>
+    <string name="wd_state">State: %1$s</string>
+    <string name="wd_group_owner">Group owner: %1$s</string>
+    <string name="wd_perm_msg">Wi-Fi Direct needs location/nearby permission</string>
+    <string name="wd_transfer">Transfer: %1$s</string>
+    <string name="wd_find">Find devices</string>
+    <string name="wd_disconnect">Disconnect</string>
+    <string name="wd_arm_send_n">Arm send (%1$d)</string>
+    <string name="wd_arm_send_test">Arm send (test file)</string>
+    <string name="wd_arm_receive">Arm receive</string>
+    <string name="wd_unnamed">(unnamed device)</string>
+    <string name="wd_connect">Connect</string>
+    <string name="wd_collapse">Collapse</string>
+    <string name="wd_expand">Expand</string>
+    <!-- Receive -->
+    <string name="rec_ready_title">Ready to receive</string>
+    <string name="rec_ready_body">Others on your Wi-Fi can send to you now.</string>
+    <string name="rec_pair_title">Pair a new device</string>
+    <string name="rec_pair_body">Have the sender scan this code once. After that they can send to you any time.</string>
+    <string name="rec_qr_desc">Pairing QR</string>
+    <string name="rec_note_autosave">Received files are saved to Downloads automatically, and appear in your Inbox.</string>
+    <string name="rec_note_manual">Received files appear in your Inbox, where you can open or save them.</string>
+
+    <!-- Inbox -->
+    <string name="inbox_perm_msg">Storage permission denied</string>
+    <string name="inbox_empty">Files people send you show up here. Open the Receive tab and share your QR to get started.</string>
+    <string name="inbox_header">Inbox \u00b7 %1$d file(s)</string>
+    <string name="inbox_size_from">%1$s \u00b7 from %2$s</string>
+    <string name="inbox_open">Open</string>
+    <string name="inbox_saved">Saved</string>
+    <string name="inbox_save">Save</string>
+    <string name="inbox_delete">Delete</string>
+    <string name="inbox_delete_title">Delete file?</string>
+    <string name="inbox_delete_msg_saved">Remove \"%1$s\" from your Inbox. Your saved copy in Downloads will stay.</string>
+    <string name="inbox_delete_msg_plain">Remove \"%1$s\" from your Inbox. This deletes the received copy.</string>
+    <string name="inbox_cancel">Cancel</string>
+    <!-- Controller status (transient) -->
+    <string name="st_idle">Idle</string>
+    <string name="st_autosave_on">Auto-save to Downloads is on</string>
+    <string name="st_autosave_off">Auto-save off</string>
+    <string name="st_saved_dl">Saved %1$s to Downloads</string>
+    <string name="st_save_failed">Save failed: %1$s</string>
+    <string name="st_ready_send">Ready to send %1$d file(s) \u2014 choose paired devices</string>
+    <string name="st_cleared">Cleared staged files</string>
+    <string name="st_read_failed">Couldn\'t read the selected file(s)</string>
+    <string name="st_paired_with">Paired with %1$s</string>
+    <string name="st_pairing_failed">Pairing failed: not a RelayPony QR</string>
+    <string name="st_received">Received %1$d file(s) from %2$s</string>
+    <string name="st_receiver_stopped">Receiver stopped: %1$s</string>
+    <string name="st_listening">Listening on %1$d, advertising as %2$s</string>
+    <string name="st_discovering">Discovering peers\u2026</string>
+    <string name="st_select_one">Select at least one paired device</string>
+    <string name="st_sending_to">Sending to %1$d device(s)\u2026</string>
+    <string name="st_group_finished">Group send finished (%1$d device(s))</string>
+    <string name="st_removed">Removed %1$s</string>
+    <string name="st_open_failed">Can\'t open %1$s: %2$s</string>
+    <string name="st_sending">Sending\u2026</string>
+    <string name="st_sent">Sent</string>
+    <string name="st_failed">Failed: %1$s</string>
+    <string name="st_wifi_armed_send">Armed to SEND \u2014 now connect to the receiver below</string>
+    <string name="st_wifi_armed_recv">Armed to RECEIVE \u2014 now connect from the sender below</string>
+    <string name="st_wifi_not_paired">Not paired with %1$s \u2014 scan its QR first, then retry</string>
+    <string name="st_wifi_failed">Wi-Fi Direct transfer failed: %1$s</string>
+    <string name="st_wifi_exchanging">Exchanging identities\u2026</string>
+    <string name="st_wifi_sending">Sending %1$d file(s) to %2$s\u2026</string>
+    <string name="st_wifi_sent">Sent %1$d file(s) to %2$s over Wi-Fi Direct</string>
+    <string name="st_wifi_receiving">Receiving from %1$s\u2026</string>
+    <string name="st_wifi_received">Received %1$d file(s) from %2$s over Wi-Fi Direct</string>
+    <!-- Wi-Fi Direct connection state (manager) -->
+    <string name="wd_not_connected">Not connected</string>
+    <string name="wd_connecting">Connecting to %1$s\u2026</string>
+    <string name="wd_busy_retry">Framework busy, retrying\u2026 (%1$d)</string>
+    <string name="wd_connected_owner">Connected \u00b7 this device is group owner</string>
+    <string name="wd_connected_client">Connected \u00b7 client of %1$s</string>
+    <string name="wd_discover_failed">Discover failed (%1$s)</string>
+    <string name="wd_connect_failed">Connect failed (%1$s)</string>
+    <string name="wd_reason_unsupported">Wi-Fi Direct unsupported on this device</string>
+    <string name="wd_reason_busy">framework busy, try again</string>
+    <string name="wd_reason_internal">internal error</string>
+    <string name="wd_reason_other">reason %1$d</string>
+
+    <!-- Theme -->
+    <string name="set_theme">Theme</string>
+    <string name="set_theme_system">System default</string>
+    <string name="set_theme_light">Light</string>
+    <string name="set_theme_dark">Dark</string>
+    <string name="st_receive_interrupted">Transfer interrupted — still listening</string>
+    <string name="rec_paused_title">Receiving paused</string>
+    <string name="rec_paused_body">You\'re not discoverable right now. Start to listen again.</string>
+    <string name="rec_stop">Stop receiving</string>
+    <string name="rec_start">Start receiving</string>
+    <string name="rec_receiving">Receiving…</string>
+    <string name="st_send_retrying">Connection lost, retrying… (%1$d)</string>
+</resources>
