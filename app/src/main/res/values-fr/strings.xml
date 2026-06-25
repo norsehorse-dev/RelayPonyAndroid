@@ -168,4 +168,5 @@
     <string name="rec_start">Démarrer la réception</string>
     <string name="rec_receiving">Réception…</string>
     <string name="st_send_retrying">Connexion perdue, nouvelle tentative… (%1$d)</string>
+    <string name="wd_arm_send_pick">Choisissez d\'abord des fichiers</string>
 </resources>

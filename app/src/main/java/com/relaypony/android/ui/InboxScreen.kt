@@ -28,6 +28,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -181,7 +182,10 @@ private fun formatSize(bytes: Long): String {
     return String.format(Locale.US, "%.1f GB", mb / 1024.0)
 }
 
+@Composable
 private fun relativeTime(epochMs: Long): String =
-    DateUtils.getRelativeTimeSpanString(
-        epochMs, System.currentTimeMillis(), DateUtils.MINUTE_IN_MILLIS,
+    // Resolve through the app-locale-wrapped LocalContext (provided by MainActivity) so the relative
+    // time follows the in-app language instead of the process/system default locale.
+    DateUtils.getRelativeDateTimeString(
+        LocalContext.current, epochMs, DateUtils.MINUTE_IN_MILLIS, DateUtils.WEEK_IN_MILLIS, 0,
     ).toString()

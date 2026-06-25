@@ -169,4 +169,5 @@
     <string name="rec_start">Start receiving</string>
     <string name="rec_receiving">Receiving…</string>
     <string name="st_send_retrying">Connection lost, retrying… (%1$d)</string>
+    <string name="wd_arm_send_pick">Pick files first</string>
 </resources>

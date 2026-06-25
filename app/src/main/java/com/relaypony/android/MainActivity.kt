@@ -27,6 +27,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        applyDefaultLocale()
         enableEdgeToEdge()
         // If launched from another app's share sheet, resolve the shared files up front.
         val sharedFiles = SharedFiles.fromIntent(this, intent)
@@ -72,6 +73,22 @@ class MainActivity : AppCompatActivity() {
                 }
             }
         }
+    }
+
+    /** Align the process default locale (used by DateUtils and other default-locale formatters) with
+     *  the persisted in-app language BEFORE any UI composes, so non-Compose formatters don't render in
+     *  a stale system / per-app OS locale. Runtime changes are handled in TransferController.setLanguage. */
+    private fun applyDefaultLocale() {
+        val code = getSharedPreferences("relaypony_settings", Context.MODE_PRIVATE)
+            .getString("lang", "en") ?: "en"
+        val locale = if (code.isNotEmpty()) {
+            Locale.forLanguageTag(code)
+        } else {
+            val cfg = Resources.getSystem().configuration
+            @Suppress("DEPRECATION")
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) cfg.locales[0] else cfg.locale
+        }
+        Locale.setDefault(locale)
     }
 
     override fun onDestroy() {

@@ -28,6 +28,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.relaypony.android.R
 import com.relaypony.android.transfer.TransferController
+import com.relaypony.android.transfer.UiText
+import com.relaypony.android.transfer.resolve
 
 /**
  * Shared, collapsible "connect directly" panel for both Send and Receive. Collapsed by default so
@@ -37,15 +39,17 @@ import com.relaypony.android.transfer.TransferController
 @Composable
 fun WifiDirectSection(controller: TransferController, asSender: Boolean) {
     var expanded by remember { mutableStateOf(false) }
-    val wifiPermMsg = stringResource(R.string.wd_perm_msg)
     val unnamedDevice = stringResource(R.string.wd_unnamed)
     val wifiPermLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { grants ->
         if (grants.values.all { it }) controller.wifiDirect.discover()
-        else controller.wifiDirect.lastError.value = wifiPermMsg
+        else controller.wifiDirect.lastError.value = UiText(R.string.wd_perm_msg)
     }
     val sharing = controller.pendingShare.isNotEmpty()
+    // A sender must pick files before arming; a receiver can arm immediately. Disabling (rather than
+    // hiding) keeps the panel's shape and shows a "pick files first" hint in place of the old test path.
+    val armEnabled = !asSender || sharing
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -65,14 +69,14 @@ fun WifiDirectSection(controller: TransferController, asSender: Boolean) {
             }
 
             if (expanded) {
-                Text(stringResource(R.string.wd_state, controller.wifiDirect.connectionState.value), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.wd_state, controller.wifiDirect.connectionState.value.resolve()), style = MaterialTheme.typography.bodySmall)
                 controller.wifiDirect.groupOwnerAddress.value?.let {
                     Text(stringResource(R.string.wd_group_owner, it), style = MaterialTheme.typography.bodySmall)
                 }
                 controller.wifiDirect.lastError.value?.let {
-                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                    Text(it.resolve(), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }
-                Text(stringResource(R.string.wd_transfer, controller.wifiTransferStatus.value), style = MaterialTheme.typography.bodySmall)
+                Text(stringResource(R.string.wd_transfer, controller.wifiTransferStatus.value.resolve()), style = MaterialTheme.typography.bodySmall)
 
                 Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     Button(onClick = { wifiPermLauncher.launch(controller.wifiDirectPermissions()) }) {
@@ -82,11 +86,13 @@ fun WifiDirectSection(controller: TransferController, asSender: Boolean) {
                 }
                 Button(
                     onClick = { controller.armWifiDirect(asSender = asSender) },
+                    enabled = armEnabled,
                     modifier = Modifier.fillMaxWidth(),
                 ) {
                     Text(
                         if (asSender) {
-                            if (sharing) stringResource(R.string.wd_arm_send_n, controller.pendingShare.size) else stringResource(R.string.wd_arm_send_test)
+                            if (sharing) stringResource(R.string.wd_arm_send_n, controller.pendingShare.size)
+                            else stringResource(R.string.wd_arm_send_pick)
                         } else {
                             stringResource(R.string.wd_arm_receive)
                         }

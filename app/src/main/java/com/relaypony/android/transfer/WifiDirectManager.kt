@@ -31,13 +31,11 @@ class WifiDirectManager(context: Context) {
     private val manager = appContext.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
     private val channel = manager.initialize(appContext, appContext.mainLooper, null)
 
-    private fun str(id: Int, vararg args: Any?): String = appContext.getString(id, *args)
-
     val enabled = mutableStateOf(false)
     val p2pPeers = mutableStateListOf<WifiP2pDevice>()
-    val connectionState = mutableStateOf(appContext.getString(R.string.wd_not_connected))
+    val connectionState = mutableStateOf(UiText(R.string.wd_not_connected))
     val groupOwnerAddress = mutableStateOf<String?>(null)
-    val lastError = mutableStateOf<String?>(null)
+    val lastError = mutableStateOf<UiText?>(null)
     val isGroupOwner = mutableStateOf(false)
 
     /** Invoked when a group forms, with this device's role and the group-owner address. */
@@ -81,7 +79,7 @@ class WifiDirectManager(context: Context) {
         lastError.value = null
         manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {}
-            override fun onFailure(reason: Int) { lastError.value = str(R.string.wd_discover_failed, reasonText(reason)) }
+            override fun onFailure(reason: Int) { lastError.value = UiText(R.string.wd_discover_failed, reasonText(reason)) }
         })
     }
 
@@ -103,13 +101,13 @@ class WifiDirectManager(context: Context) {
     private fun connectAttempt(device: WifiP2pDevice, attempt: Int) {
         val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress }
         manager.connect(channel, config, object : WifiP2pManager.ActionListener {
-            override fun onSuccess() { connectionState.value = str(R.string.wd_connecting, device.deviceName) }
+            override fun onSuccess() { connectionState.value = UiText(R.string.wd_connecting, device.deviceName) }
             override fun onFailure(reason: Int) {
                 if (reason == WifiP2pManager.BUSY && attempt < MAX_CONNECT_RETRIES) {
-                    connectionState.value = str(R.string.wd_busy_retry, attempt + 1)
+                    connectionState.value = UiText(R.string.wd_busy_retry, attempt + 1)
                     handler.postDelayed({ connectAttempt(device, attempt + 1) }, CONNECT_RETRY_MS)
                 } else {
-                    lastError.value = str(R.string.wd_connect_failed, reasonText(reason))
+                    lastError.value = UiText(R.string.wd_connect_failed, reasonText(reason))
                 }
             }
         })
@@ -121,11 +119,11 @@ class WifiDirectManager(context: Context) {
                 isGroupOwner.value = info.isGroupOwner
                 groupOwnerAddress.value = info.groupOwnerAddress?.hostAddress
                 connectionState.value =
-                    if (info.isGroupOwner) str(R.string.wd_connected_owner)
-                    else str(R.string.wd_connected_client, info.groupOwnerAddress?.hostAddress ?: "")
+                    if (info.isGroupOwner) UiText(R.string.wd_connected_owner)
+                    else UiText(R.string.wd_connected_client, info.groupOwnerAddress?.hostAddress ?: "")
                 onConnected?.invoke(info.isGroupOwner, info.groupOwnerAddress?.hostAddress)
             } else {
-                connectionState.value = str(R.string.wd_not_connected)
+                connectionState.value = UiText(R.string.wd_not_connected)
                 groupOwnerAddress.value = null
             }
         }
@@ -133,15 +131,15 @@ class WifiDirectManager(context: Context) {
 
     fun disconnect() {
         manager.removeGroup(channel, null)
-        connectionState.value = str(R.string.wd_not_connected)
+        connectionState.value = UiText(R.string.wd_not_connected)
         groupOwnerAddress.value = null
     }
 
-    private fun reasonText(reason: Int): String = when (reason) {
-        WifiP2pManager.P2P_UNSUPPORTED -> str(R.string.wd_reason_unsupported)
-        WifiP2pManager.BUSY -> str(R.string.wd_reason_busy)
-        WifiP2pManager.ERROR -> str(R.string.wd_reason_internal)
-        else -> str(R.string.wd_reason_other, reason)
+    private fun reasonText(reason: Int): UiText = when (reason) {
+        WifiP2pManager.P2P_UNSUPPORTED -> UiText(R.string.wd_reason_unsupported)
+        WifiP2pManager.BUSY -> UiText(R.string.wd_reason_busy)
+        WifiP2pManager.ERROR -> UiText(R.string.wd_reason_internal)
+        else -> UiText(R.string.wd_reason_other, reason)
     }
 
     companion object {

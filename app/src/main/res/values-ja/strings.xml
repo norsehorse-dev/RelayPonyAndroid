@@ -168,4 +168,5 @@
     <string name="rec_start">受信を開始</string>
     <string name="rec_receiving">受信中…</string>
     <string name="st_send_retrying">接続が切れました、再試行中… (%1$d)</string>
+    <string name="wd_arm_send_pick">先にファイルを選択</string>
 </resources>

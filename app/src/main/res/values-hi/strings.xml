@@ -164,4 +164,5 @@
     <string name="rec_start">प्राप्ति शुरू करें</string>
     <string name="rec_receiving">प्राप्त हो रहा है…</string>
     <string name="st_send_retrying">कनेक्शन टूटा, पुनः प्रयास… (%1$d)</string>
+    <string name="wd_arm_send_pick">पहले फ़ाइलें चुनें</string>
 </resources>

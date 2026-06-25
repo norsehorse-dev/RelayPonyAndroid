@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
+import android.content.res.Resources
 import android.net.Uri
 import android.os.Build
 import android.os.Handler
@@ -59,7 +60,7 @@ class TransferController(context: Context) {
     val wifiDirect = WifiDirectManager(appContext)
     private val main = Handler(Looper.getMainLooper())
 
-    val status = mutableStateOf(appContext.getString(R.string.st_idle))
+    val status = mutableStateOf(idleStatusText())
     val peers = mutableStateListOf<NsdDiscovery.Peer>()
     val pendingShare = mutableStateListOf<OutgoingFile>()
     val inbox = mutableStateListOf<ReceivedFile>()
@@ -68,7 +69,7 @@ class TransferController(context: Context) {
     val sendStatus = mutableStateMapOf<String, String>()
 
     /** Live status of the current Wi-Fi Direct transfer. */
-    val wifiTransferStatus = mutableStateOf(appContext.getString(R.string.st_idle))
+    val wifiTransferStatus = mutableStateOf(UiText(R.string.st_idle))
 
     /** Per-peer "is a send in flight" flag, parallel to sendStatus. Drives the progress UI. */
     val sendInProgress = mutableStateMapOf<String, Boolean>()
@@ -96,6 +97,16 @@ class TransferController(context: Context) {
     }
 
     private fun str(id: Int, vararg args: Any?): String = localizedContext().getString(id, *args)
+
+    /** The idle status string in the persisted in-app language, read directly from settings so it does
+     *  not depend on [languageCode] (declared later) and does not leak the process default locale. */
+    private fun idleStatusText(): String {
+        val tag = settings.getString(KEY_LANG, "en") ?: "en"
+        if (tag.isEmpty()) return appContext.getString(R.string.st_idle)
+        val cfg = Configuration(appContext.resources.configuration)
+        cfg.setLocale(Locale.forLanguageTag(tag))
+        return appContext.createConfigurationContext(cfg).getString(R.string.st_idle)
+    }
 
     private fun setStatus(text: String, kind: StatusKind = StatusKind.OTHER) {
         status.value = text
@@ -192,6 +203,16 @@ class TransferController(context: Context) {
     fun setLanguage(code: String) {
         languageCode.value = code
         settings.edit().putString(KEY_LANG, code).apply()
+        // Keep the process default locale (DateUtils and other default-locale formatters) in sync with
+        // the in-app language on a runtime switch; set before recomposition reads it.
+        Locale.setDefault(
+            if (code.isNotEmpty()) Locale.forLanguageTag(code)
+            else {
+                val cfg = Resources.getSystem().configuration
+                @Suppress("DEPRECATION")
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) cfg.locales[0] else cfg.locale
+            }
+        )
     }
 
     fun saveToDownloads(file: ReceivedFile) {
@@ -325,7 +346,8 @@ class TransferController(context: Context) {
             setStatus(str(R.string.st_select_one))
             return
         }
-        val files = if (pendingShare.isNotEmpty()) pendingShare.toList() else listOf(testBlob())
+        if (pendingShare.isEmpty()) return
+        val files = pendingShare.toList()
         sendable.forEach { val k = peerKey(it); sendStatus[k] = str(R.string.st_sending); sendInProgress[k] = true; sendProgress[k] = 0f }
         setStatus(str(R.string.st_sending_to, sendable.size))
         thread(name = "relaypony-group-send") {
@@ -428,8 +450,8 @@ class TransferController(context: Context) {
         wifiAsSender = asSender
         wifiArmed = true
         wifiTransferStatus.value =
-            if (asSender) str(R.string.st_wifi_armed_send)
-            else str(R.string.st_wifi_armed_recv)
+            if (asSender) UiText(R.string.st_wifi_armed_send)
+            else UiText(R.string.st_wifi_armed_recv)
         val addr = wifiDirect.groupOwnerAddress.value
         if (addr != null) onWifiConnected(wifiDirect.isGroupOwner.value, addr)
     }
@@ -445,16 +467,17 @@ class TransferController(context: Context) {
                 val iSend = WifiIdent.resolveISend(mine, theirs)
                 if (iSend) {
                     if (!Pairing.canSendOneTap(theirs.handle, trustStore)) {
-                        postWifi(str(R.string.st_wifi_not_paired, theirs.deviceName))
+                        postWifi(UiText(R.string.st_wifi_not_paired, theirs.deviceName))
                         return@thread
                     }
-                    val files = if (pendingShare.isNotEmpty()) pendingShare.toList() else listOf(testBlob())
+                    if (pendingShare.isEmpty()) return@thread
+                    val files = pendingShare.toList()
                     sendOverWifi(peerIp, theirs.handle, files, theirs.deviceName)
                 } else {
                     receiveOverWifi(theirs.deviceName)
                 }
             } catch (t: Throwable) {
-                postWifi(str(R.string.st_wifi_failed, t.message ?: ""))
+                postWifi(UiText(R.string.st_wifi_failed, t.message ?: ""))
             }
         }
     }
@@ -462,7 +485,7 @@ class TransferController(context: Context) {
     /** Exchange [Ident]s over the formed link. The group owner listens; the client connects to it.
      *  Returns the peer's identity and the peer's IP (the sender later opens the transfer to it). */
     private fun exchangeIdent(isGroupOwner: Boolean, goAddress: String?, mine: Ident): Pair<Ident, String> {
-        postWifi(str(R.string.st_wifi_exchanging))
+        postWifi(UiText(R.string.st_wifi_exchanging))
         if (isGroupOwner) {
             ServerSocket(PORT_IDENT).use { server ->
                 server.soTimeout = IDENT_TIMEOUT_MS
@@ -484,14 +507,14 @@ class TransferController(context: Context) {
 
     private fun sendOverWifi(peerIp: String, theirHandle: String, files: List<OutgoingFile>, theirName: String) {
         val recipient = provider.recipientFromQr(theirHandle.toByteArray(Charsets.UTF_8))
-        postWifi(str(R.string.st_wifi_sending, files.size, theirName))
+        postWifi(UiText(R.string.st_wifi_sending, files.size, theirName))
         var attempt = 0
         while (true) {
             try {
                 SocketTransfer.sendTo(
                     peerIp, PORT_TRANSFER, provider, listOf(recipient), deviceName, myHandle, files,
                 )
-                postWifi(str(R.string.st_wifi_sent, files.size, theirName))
+                postWifi(UiText(R.string.st_wifi_sent, files.size, theirName))
                 return
             } catch (e: java.net.ConnectException) {
                 if (++attempt >= TRANSFER_CONNECT_ATTEMPTS) throw e
@@ -501,7 +524,7 @@ class TransferController(context: Context) {
     }
 
     private fun receiveOverWifi(theirName: String) {
-        postWifi(str(R.string.st_wifi_receiving, theirName))
+        postWifi(UiText(R.string.st_wifi_receiving, theirName))
         ServerSocket(PORT_TRANSFER).use { server ->
             server.soTimeout = TRANSFER_TIMEOUT_MS
             val written = mutableListOf<Written>()
@@ -512,7 +535,7 @@ class TransferController(context: Context) {
                 outFile.outputStream()
             }
             recordReceived(written, result.senderName)
-            postWifi(str(R.string.st_wifi_received, written.size, result.senderName))
+            postWifi(UiText(R.string.st_wifi_received, written.size, result.senderName))
         }
     }
 
@@ -529,7 +552,7 @@ class TransferController(context: Context) {
         throw last ?: IllegalStateException("could not connect to $host:$port")
     }
 
-    private fun postWifi(message: String) {
+    private fun postWifi(message: UiText) {
         main.post { wifiTransferStatus.value = message }
     }
 

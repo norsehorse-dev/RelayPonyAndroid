@@ -180,9 +180,6 @@ fun SendScreen(controller: TransferController) {
                     stringResource(R.string.send_pick_first),
                     style = MaterialTheme.typography.bodySmall,
                 )
-                TextButton(onClick = { controller.sendToGroup(selectedPaired) }) {
-                    Text(stringResource(R.string.send_test_instead))
-                }
             }
         }
 

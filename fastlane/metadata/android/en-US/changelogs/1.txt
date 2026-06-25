@@ -1,0 +1,1 @@
+Initial release of RelayPony: encrypted device-to-device file transfer over local Wi-Fi and Wi-Fi Direct. No servers, no account, no cloud.

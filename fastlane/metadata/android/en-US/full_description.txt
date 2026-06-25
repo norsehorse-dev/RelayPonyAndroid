@@ -1,0 +1,28 @@
+Send files from one phone to another, directly. RelayPony is a private, encrypted file transfer app that moves your photos, videos, documents, and any files device to device, with no servers, no account, and no cloud in between.
+
+Most file sharing apps upload your files to someone else's servers or bury you in ads. RelayPony does neither. Your files go straight to the person you're sending to, over your local Wi-Fi or a direct Wi-Fi Direct link, encrypted the entire way. Nothing is stored online, because there is no online.
+
+HOW IT WORKS
+The person receiving opens RelayPony and shows a QR code. You scan it once, pick your files, and send. The pairing is remembered, so the next transfer to that device is a single tap.
+
+WHY RELAYPONY
+* Private by design. Files are end-to-end encrypted with the age encryption standard, so only the recipient can open them.
+* No servers, no account, no cloud. Nothing to sign up for, nothing uploaded, nothing tracked.
+* Works without internet. Share over local Wi-Fi, or use Wi-Fi Direct when there's no shared network at all. Built for travel, weak signal, and saving mobile data.
+* Send to several devices at once. Pair multiple phones and send to all of them together.
+* Reliable transfers. If a connection drops, RelayPony reconnects and keeps going, with real progress the whole way.
+* No ads. No tracking. No in-app purchases.
+* Open source. The code is public, so anyone can verify exactly what the app does.
+
+A FASTER WAY TO SHARE FILES
+No waiting on uploads and downloads. No sign-in. No watching your files pass through a stranger's cloud. Just pick a file and send it to the phone next to you.
+
+SPEAKS YOUR LANGUAGE
+RelayPony is available in English, Hindi, Spanish, German, French, Japanese, and Portuguese.
+
+PERMISSIONS, PLAINLY
+The camera is used only to scan the pairing QR code, on your device. Nearby-device and Wi-Fi access are used only to find and connect to the phone you're sending to. Your files never leave your device except as the encrypted transfer you choose to send.
+
+Send files the private way. No cloud, no account, no catch.
+
+relaypony.app
