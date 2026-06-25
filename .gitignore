@@ -13,6 +13,12 @@ captures/
 .cxx/
 /app/release/
 
+# Signing keys & secrets — NEVER commit these
+*.jks
+*.keystore
+*.p12
+keystore.properties
+
 # Local config (never commit)
 local.properties
 
