@@ -1,0 +1,3 @@
+[submodule "AgePonyAndroid"]
+	path = AgePonyAndroid
+	url = https://github.com/norsehorse-dev/AgePonyAndroid.git
