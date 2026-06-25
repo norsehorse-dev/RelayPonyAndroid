@@ -41,6 +41,14 @@ The on-wire framing is versioned and frozen; `WIRE_VERSION` is bumped before any
 
 Requirements: JDK 17 and the Android SDK (compileSdk 36). minSdk is 23, targetSdk 36.
 
+The build needs to know where your Android SDK is. Because AgePony is pulled in as a composite build, point at the SDK with the `ANDROID_HOME` environment variable rather than a single `local.properties`, so both RelayPony and the AgePony build see it:
+
+```
+export ANDROID_HOME=$HOME/Library/Android/sdk   # macOS; adjust for your OS
+```
+
+(Alternatively, set `sdk.dir` in a `local.properties` at the repo root — but note `local.properties` is intentionally not committed.)
+
 RelayPony's `crypto` module depends on the age core from AgePony, which is included as a git **submodule**, so clone recursively:
 
 ```
