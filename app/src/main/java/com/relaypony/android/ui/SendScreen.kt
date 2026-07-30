@@ -12,16 +12,24 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
+import com.relaypony.transport.Beacon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -34,6 +42,7 @@ import com.relaypony.android.transfer.TransferController
 @Composable
 fun SendScreen(controller: TransferController) {
     val selected = remember { mutableStateListOf<String>() }
+    var byAddress by remember { mutableStateOf(false) }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
         result.contents?.let { controller.pinFromScan(it) }
@@ -108,7 +117,14 @@ fun SendScreen(controller: TransferController) {
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Text(stringResource(R.string.send_to_device_title), style = MaterialTheme.typography.titleMedium)
-            OutlinedButton(onClick = { controller.startDiscovery() }) { Text(stringResource(R.string.send_refresh)) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { byAddress = true }) {
+                    Text(stringResource(R.string.send_by_address))
+                }
+                OutlinedButton(onClick = { controller.startDiscovery() }) {
+                    Text(stringResource(R.string.send_refresh))
+                }
+            }
         }
         if (controller.peers.isEmpty()) {
             Text(
@@ -186,4 +202,72 @@ fun SendScreen(controller: TransferController) {
         HorizontalDivider()
         WifiDirectSection(controller, asSender = true)
     }
+
+    if (byAddress) SendByAddressDialog(controller) { byAddress = false }
+}
+
+/**
+ * Send to an already-paired device at an address typed by hand.
+ *
+ * The way out of every network discovery can't cross — a hotspot, guest Wi-Fi that isolates
+ * clients, a VPN. Pairing is what supplies the key, the one thing an address can't, so this only
+ * offers devices already in the trust store: the security model is unchanged, we've just found the
+ * socket a different way.
+ */
+@Composable
+private fun SendByAddressDialog(controller: TransferController, onDismiss: () -> Unit) {
+    val paired = controller.pairedDevices()
+    var selectedHandle by remember { mutableStateOf(paired.firstOrNull()?.recipientHandle ?: "") }
+    var host by remember { mutableStateOf("") }
+    var port by remember { mutableStateOf(Beacon.DEFAULT_TRANSFER_PORT.toString()) }
+    val portNumber = port.trim().toIntOrNull()
+    val ready = selectedHandle.isNotEmpty() && host.isNotBlank() && portNumber != null && portNumber in 1..65535
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.send_by_address_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Text(stringResource(R.string.send_by_address_help), style = MaterialTheme.typography.bodySmall)
+                if (paired.isEmpty()) {
+                    Text(stringResource(R.string.send_no_paired), style = MaterialTheme.typography.bodySmall)
+                } else {
+                    Text(stringResource(R.string.send_by_address_device), style = MaterialTheme.typography.labelMedium)
+                    paired.forEach { device ->
+                        val chosen = device.recipientHandle == selectedHandle
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(checked = chosen, onCheckedChange = { selectedHandle = device.recipientHandle })
+                            Text(device.name, style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
+                    OutlinedTextField(
+                        value = host,
+                        onValueChange = { host = it },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.send_by_address_host)) },
+                    )
+                    OutlinedTextField(
+                        value = port,
+                        onValueChange = { port = it },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        label = { Text(stringResource(R.string.send_by_address_port)) },
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = ready,
+                onClick = {
+                    val device = paired.firstOrNull { it.recipientHandle == selectedHandle }
+                    if (device != null && portNumber != null) {
+                        controller.sendToAddress(host, portNumber, device.recipientHandle, device.name)
+                    }
+                    onDismiss()
+                },
+            ) { Text(stringResource(R.string.send_by_address_go)) }
+        },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.inbox_cancel)) } },
+    )
 }

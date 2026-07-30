@@ -170,4 +170,23 @@
     <string name="rec_receiving">Receiving…</string>
     <string name="st_send_retrying">Connection lost, retrying… (%1$d)</string>
     <string name="wd_arm_send_pick">Pick files first</string>
+    <!-- Wi-Fi Direct: the radio cannot be a hotspot and a P2P device at the same time. -->
+    <string name="wd_hotspot_conflict">Turn off your hotspot first — a phone can\'t share a hotspot and use Wi-Fi Direct at the same time.</string>
+
+    <!-- Receive: the address other devices can reach this phone at. -->
+    <string name="rec_reachable_title">Reach this phone at</string>
+    <string name="rec_reachable_hint">If the other device can\'t find this phone, type one of these into its \"Send by address\".</string>
+
+    <!-- Send by address: the way out when discovery can\'t cross the network. -->
+    <string name="send_by_address">Send by address…</string>
+    <string name="send_by_address_title">Send by address</string>
+    <string name="send_by_address_help">Use this when the other device won\'t appear on its own. Its Receive screen shows the address and port to type here.</string>
+    <string name="send_by_address_device">Paired device</string>
+    <string name="send_by_address_host">Address</string>
+    <string name="send_by_address_port">Port</string>
+    <string name="send_by_address_go">Send</string>
+    <string name="send_no_paired">Pair with a device first — sending by address still needs its key.</string>
+    <string name="st_manual_bad_address">That doesn\'t look like a valid address and port.</string>
+    <string name="st_manual_not_paired">Not paired with %1$s — pair over Wi-Fi first.</string>
+    <string name="st_pick_files_first">Pick files to send first.</string>
 </resources>

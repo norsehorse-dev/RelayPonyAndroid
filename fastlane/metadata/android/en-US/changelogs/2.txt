@@ -1,0 +1,7 @@
+Devices now find each other on networks where discovery used to fail — including over a phone's own hotspot, which never worked before.
+
+• New broadcast-based device discovery, running alongside the existing method
+• Send by address: reach a paired device by typing its address when discovery can't get through
+• The Receive screen now shows the address other devices can reach this phone at
+• A fixed transfer port, so firewall rules and typed addresses stay valid between runs
+• Wi-Fi Direct now explains that it can't run while your hotspot is on, instead of failing with an unhelpful error

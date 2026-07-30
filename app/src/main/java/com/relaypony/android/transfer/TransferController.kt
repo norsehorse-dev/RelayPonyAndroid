@@ -27,6 +27,9 @@ import com.relaypony.session.inbox.ReceivedFile
 import com.relaypony.session.pairing.Pairing
 import java.util.Locale
 import com.relaypony.session.pairing.QrPayload
+import com.relaypony.transport.Beacon
+import com.relaypony.transport.BeaconDiscovery
+import com.relaypony.transport.LocalInterfaces
 import com.relaypony.transport.NsdDiscovery
 import java.io.ByteArrayInputStream
 import java.io.File
@@ -57,6 +60,21 @@ class TransferController(context: Context) {
     val deviceName: String = Build.MODEL ?: "Android"
 
     private val discovery = NsdDiscovery(appContext)
+
+    /**
+     * Broadcast discovery, running alongside mDNS rather than instead of it.
+     *
+     * NsdManager follows the process's *default* network. While this phone shares its hotspot the
+     * default network is mobile data, so mDNS advertisements go out over cellular and nothing on
+     * the tethered subnet ever hears them — which is exactly why a laptop on the hotspot could
+     * never find the phone. The beacon sends from a socket bound to each local interface address
+     * in turn, so it speaks on the subnet actually being shared.
+     */
+    private val beacon = BeaconDiscovery()
+    private val wifiManager =
+        appContext.getSystemService(Context.WIFI_SERVICE) as android.net.wifi.WifiManager
+    private var beaconLock: android.net.wifi.WifiManager.MulticastLock? = null
+
     val wifiDirect = WifiDirectManager(appContext)
     private val main = Handler(Looper.getMainLooper())
 
@@ -76,6 +94,12 @@ class TransferController(context: Context) {
 
     /** Per-peer send progress in 0f..1f, parallel to sendStatus. Drives the determinate bar. */
     val sendProgress = mutableStateMapOf<String, Float>()
+
+    /** The port we ended up listening on, shown on the Receive screen so it can be typed elsewhere. */
+    val listenPort = mutableStateOf(0)
+
+    /** "192.168.1.24:45789" per interface — the addresses another device can reach this one at. */
+    val reachableAddresses = mutableStateListOf<String>()
 
     /** True while a file is actively being received (drives the receive progress card). */
     val receiveInProgress = mutableStateOf(false)
@@ -168,6 +192,15 @@ class TransferController(context: Context) {
         QrPayload(QrPayload.CURRENT_VERSION, provider.schemeId, myHandle, deviceName).encode()
 
     fun isPinned(handle: String): Boolean = trustStore.isPinned(handle)
+
+    /**
+     * Every device this phone has paired with, discovered or not.
+     *
+     * Until now nothing enumerated the trust store into the UI — a paired device that wasn't
+     * currently advertising simply didn't exist as far as the app was concerned. Sending by address
+     * needs exactly that list, because pairing is what supplies the key.
+     */
+    fun pairedDevices(): List<com.relaypony.session.pairing.PinnedDevice> = trustStore.all()
 
     fun needsStoragePermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
@@ -267,10 +300,15 @@ class TransferController(context: Context) {
     fun startReceiving() {
         wantsReceiving.value = true
         if (serverSocket != null) return
-        val server = ServerSocket(0)
+        // A stable port, not whatever the OS hands out. An ephemeral port meant this device's
+        // address was only valid for one run: unusable in a firewall rule, and impossible to tell
+        // anyone when discovery isn't getting through. Fall back to ephemeral if it's taken —
+        // being harder to find beats refusing to receive.
+        val server = runCatching { ServerSocket(Beacon.DEFAULT_TRANSFER_PORT) }.getOrElse { ServerSocket(0) }
         serverSocket = server
         isReceiving.value = true
         val port = server.localPort
+        listenPort.value = port
         thread(name = "relaypony-accept") {
             // The listener survives individual failed transfers (e.g. a sender resetting the
             // connection mid-stream). Only an intentional stop() — which closes the socket — ends
@@ -314,6 +352,11 @@ class TransferController(context: Context) {
             main.post { isReceiving.value = false }
         }
         discovery.advertise("RelayPony-$port", port, deviceName, myHandle)
+        acquireBeaconLock()
+        beacon.listen(myHandle, ::addBeaconPeer)
+        beacon.advertise(port, deviceName, myHandle)
+        reachableAddresses.clear()
+        reachableAddresses.addAll(LocalInterfaces.endpoints().map { "${it.ip}:$port" })
         setStatus(str(R.string.st_listening, port, deviceName))
     }
 
@@ -322,20 +365,112 @@ class TransferController(context: Context) {
     fun stopReceiving() {
         wantsReceiving.value = false
         runCatching { discovery.stopAdvertising() }
+        runCatching { beacon.stopAdvertising() }
         runCatching { serverSocket?.close() }
         serverSocket = null
         isReceiving.value = false
+        listenPort.value = 0
+        reachableAddresses.clear()
         setStatus(str(R.string.rec_paused_title))
     }
 
     fun startDiscovery() {
         peers.clear()
-        discovery.startDiscovery { peer ->
-            if (peers.none { it.host == peer.host && it.port == peer.port }) {
-                peers.add(peer)
-            }
-        }
+        discovery.startDiscovery { peer -> addPeer(peer) }
+        acquireBeaconLock()
+        beacon.listen(myHandle, ::addBeaconPeer)
+        probeForPeers()
         setStatus(str(R.string.st_discovering))
+    }
+
+    /**
+     * Actively ask "anyone there?" over broadcast. mDNS browsing is passive and slow to notice a
+     * device that started advertising after us; a probe gets an answer in well under a second, and
+     * it is what the Refresh button should do.
+     */
+    fun probeForPeers() {
+        thread(name = "relaypony-beacon-probe") {
+            runCatching { beacon.probe(2000) { peer -> main.post { addBeaconPeer(peer) } } }
+        }
+    }
+
+    /**
+     * A beacon sighting is the same device mDNS would have reported, so it joins the same list.
+     * The wire version the peer announced is dropped here because this build's [NsdDiscovery.Peer]
+     * has no field for it — this tree speaks v1 only, so there is nothing to negotiate yet.
+     */
+    private fun addBeaconPeer(peer: BeaconDiscovery.Peer) {
+        addPeer(NsdDiscovery.Peer(peer.name, peer.host, peer.port, peer.recipientHandle))
+    }
+
+    /**
+     * Deduplicate on the handle, not on host:port. The same device can be reported by both
+     * mechanisms, and can legitimately change address (a new DHCP lease, a different interface)
+     * while remaining the same device — identity here is the key, never the address.
+     */
+    private fun addPeer(peer: NsdDiscovery.Peer) {
+        val existing = peers.indexOfFirst { it.recipientHandle == peer.recipientHandle }
+        if (existing >= 0) peers[existing] = peer else peers.add(peer)
+    }
+
+    /**
+     * Send to an address typed by the user, with no discovery involved.
+     *
+     * The escape hatch for every network discovery can't cross. The peer's key comes from the
+     * pairing — the one thing an address cannot supply — so this only works for a device already
+     * pinned, and the security model is untouched: still encrypted to the pinned handle, we just
+     * found the socket differently.
+     */
+    fun sendToAddress(host: String, port: Int, recipientHandle: String, name: String) {
+        val cleanHost = host.trim()
+        if (cleanHost.isEmpty() || port !in 1..65535) {
+            setStatus(str(R.string.st_manual_bad_address))
+            return
+        }
+        if (!Pairing.canSendOneTap(recipientHandle, trustStore)) {
+            setStatus(str(R.string.st_manual_not_paired, name))
+            return
+        }
+        if (pendingShare.isEmpty()) {
+            setStatus(str(R.string.st_pick_files_first))
+            return
+        }
+        sendToGroup(listOf(NsdDiscovery.Peer(name, cleanHost, port, recipientHandle)))
+    }
+
+    /**
+     * Android drops inbound broadcast frames not addressed to this device unless a multicast lock
+     * is held — the beacon would otherwise send fine and hear nothing back.
+     */
+    private fun acquireBeaconLock() {
+        if (beaconLock != null) return
+        beaconLock = runCatching {
+            wifiManager.createMulticastLock("relaypony-beacon").apply {
+                setReferenceCounted(false)
+                acquire()
+            }
+        }.getOrNull()
+    }
+
+    private fun releaseBeaconLock() {
+        runCatching { beaconLock?.takeIf { it.isHeld }?.release() }
+        beaconLock = null
+    }
+
+    /**
+     * Stop looking for other devices.
+     *
+     * The beacon socket is shared between the two jobs — it hears other devices' announcements
+     * *and* answers their probes — so it is only torn down when this device isn't receiving
+     * either. Closing it unconditionally here would make a phone sitting on its Receive tab go
+     * quietly undiscoverable the moment the user left the Send tab.
+     */
+    fun stopDiscovery() {
+        runCatching { discovery.stop() }
+        if (!isReceiving.value) {
+            runCatching { beacon.close() }
+            releaseBeaconLock()
+        }
     }
 
     /** Send the current files (shared, or the 1 MB test blob) to every selected paired peer at
@@ -579,8 +714,12 @@ class TransferController(context: Context) {
 
     fun stop() {
         runCatching { discovery.stop() }
+        runCatching { beacon.close() }
+        releaseBeaconLock()
         runCatching { serverSocket?.close() }
         serverSocket = null
+        listenPort.value = 0
+        reachableAddresses.clear()
     }
 
     private data class Written(val name: String, val size: Long, val mime: String, val path: String)

@@ -107,6 +107,34 @@ fun ReceiveScreen(controller: TransferController) {
             }
         }
 
+        // The address, always visible while receiving. When discovery works this is redundant;
+        // when it doesn't — a hotspot, an AP that filters broadcast — it is the only way anyone
+        // reaches this phone, and hunting for it in Settings is not a reasonable ask.
+        if (controller.isReceiving.value && controller.reachableAddresses.isNotEmpty()) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.fillMaxWidth().padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        stringResource(R.string.rec_reachable_title),
+                        style = MaterialTheme.typography.titleSmall,
+                    )
+                    controller.reachableAddresses.forEach { address ->
+                        Text(
+                            address,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
+                    Text(
+                        stringResource(R.string.rec_reachable_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                }
+            }
+        }
+
         if (justReceived) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Text(

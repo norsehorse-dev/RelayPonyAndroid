@@ -74,14 +74,58 @@ class WifiDirectManager(context: Context) {
         runCatching { appContext.unregisterReceiver(receiver) }
     }
 
+    /**
+     * Start peer discovery.
+     *
+     * Two things this now handles that it didn't. First, a phone cannot run its own hotspot and
+     * Wi-Fi Direct discovery at the same time — the radio can't be a SoftAP and a P2P device at
+     * once, so the framework returns BUSY. That surfaced as a bare "framework busy, try again"
+     * next to a device list that was never going to populate, with nothing pointing at the cause.
+     * Second, unlike [connect], discovery had no retry at all, so a transient BUSY was fatal.
+     */
     @SuppressLint("MissingPermission")
     fun discover() {
         lastError.value = null
+        if (isHotspotActive()) {
+            lastError.value = UiText(R.string.wd_hotspot_conflict)
+            return
+        }
+        discoverAttempt(0)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun discoverAttempt(attempt: Int) {
         manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {}
-            override fun onFailure(reason: Int) { lastError.value = UiText(R.string.wd_discover_failed, reasonText(reason)) }
+            override fun onFailure(reason: Int) {
+                if (reason == WifiP2pManager.BUSY && attempt < MAX_DISCOVER_RETRIES) {
+                    handler.postDelayed({ discoverAttempt(attempt + 1) }, DISCOVER_RETRY_MS)
+                    return
+                }
+                lastError.value = if (reason == WifiP2pManager.BUSY && isHotspotActive()) {
+                    UiText(R.string.wd_hotspot_conflict)
+                } else {
+                    UiText(R.string.wd_discover_failed, reasonText(reason))
+                }
+            }
         })
     }
+
+    /**
+     * Is this phone currently sharing its hotspot?
+     *
+     * `WifiManager.isWifiApEnabled` has been hidden since API 26, so we look at the interfaces
+     * instead: tethering brings up an AP interface (`ap0`, `wlan1`, `swlan0`, …) carrying an IPv4
+     * address, which is observable without any permission. A false negative just means the user
+     * gets the old generic error, so this errs toward staying quiet.
+     */
+    private fun isHotspotActive(): Boolean = runCatching {
+        java.net.NetworkInterface.getNetworkInterfaces().asSequence().any { nif ->
+            nif.isUp && !nif.isLoopback &&
+                HOTSPOT_IFACE_HINTS.any { hint -> nif.name.startsWith(hint) } &&
+                nif.inetAddresses.asSequence().any { it is java.net.Inet4Address }
+        }
+    }.getOrDefault(false)
 
     @SuppressLint("MissingPermission")
     private fun requestPeers() {
@@ -143,6 +187,9 @@ class WifiDirectManager(context: Context) {
     }
 
     companion object {
+        private val HOTSPOT_IFACE_HINTS = listOf("ap0", "swlan", "wlan1", "softap")
+        private const val MAX_DISCOVER_RETRIES = 2
+        private const val DISCOVER_RETRY_MS = 1200L
         private const val MAX_CONNECT_RETRIES = 3
         private const val CONNECT_RETRY_MS = 1500L
     }
