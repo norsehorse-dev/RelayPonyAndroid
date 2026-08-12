@@ -29,8 +29,14 @@ android {
         applicationId = "com.relaypony.android"
         minSdk = 23
         targetSdk = 36
-        versionCode = 2
-        versionName = "2.0"
+        // Bumped well past every versionCode I know about (local tree was 3, the diverged
+        // GitHub main is 2, my own TV-debug testing build was 4) since I can't see what's
+        // actually live on Play from here — verify this beats the live versionCode before
+        // uploading, and bump further if not; Play will reject an upload that doesn't increase.
+        // versionName follows GitHub main's own bump to 2.0 for the beacon/hotspot/send-by-address
+        // work merged in here, plus TV support and the other fixes on top.
+        versionCode = 10
+        versionName = "2.1"
     }
 
     signingConfigs {

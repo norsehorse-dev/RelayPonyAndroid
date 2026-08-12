@@ -23,13 +23,21 @@ object SocketTransfer {
         server: ServerSocket,
         provider: CryptoProvider,
         identity: Identity,
+        deviceName: String = "",
+        recipientHandle: String = "",
         onProgress: ((Long, Long) -> Unit)? = null,
         sink: FileSink,
     ): ReceiveResult {
         server.accept().use { socket ->
-            BufferedInputStream(socket.getInputStream()).use { input ->
-                return Session.receive(provider, identity, input, sink, onProgress)
-            }
+            val input = BufferedInputStream(socket.getInputStream())
+            val reverseOut = BufferedOutputStream(socket.getOutputStream())
+            return Session.receive(
+                provider, identity, input, sink,
+                reverseOut = reverseOut,
+                deviceName = deviceName,
+                recipientHandle = recipientHandle,
+                onProgress = onProgress,
+            )
         }
     }
 
@@ -42,13 +50,20 @@ object SocketTransfer {
         deviceName: String,
         senderRecipientHandle: String,
         files: List<OutgoingFile>,
+        peerMaxWire: Int = 1,
         connectTimeoutMs: Int = 10_000,
         onProgress: ((Long, Long) -> Unit)? = null,
     ) {
         Socket().use { socket ->
             socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
+            val reverseIn = BufferedInputStream(socket.getInputStream())
             BufferedOutputStream(socket.getOutputStream()).use { out ->
-                Session.send(provider, recipients, deviceName, senderRecipientHandle, files, out, onProgress)
+                Session.send(
+                    provider, recipients, deviceName, senderRecipientHandle, files, out,
+                    peerMaxWire = peerMaxWire,
+                    reverseIn = reverseIn,
+                    onProgress = onProgress,
+                )
             }
         }
     }

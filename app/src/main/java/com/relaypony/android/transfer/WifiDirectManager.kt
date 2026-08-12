@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.wifi.WifiManager
 import android.net.wifi.p2p.WifiP2pConfig
 import android.net.wifi.p2p.WifiP2pDevice
 import android.net.wifi.p2p.WifiP2pInfo
@@ -28,8 +29,13 @@ import com.relaypony.android.R
 class WifiDirectManager(context: Context) {
 
     private val appContext = context.applicationContext
-    private val manager = appContext.getSystemService(Context.WIFI_P2P_SERVICE) as WifiP2pManager
-    private val channel = manager.initialize(appContext, appContext.mainLooper, null)
+    // Nullable on purpose: TVs, streaming boxes, and emulators often ship without the Wi-Fi P2P
+    // service. A hard cast here would crash the whole app at TransferController construction.
+    private val manager = appContext.getSystemService(Context.WIFI_P2P_SERVICE) as? WifiP2pManager
+    private val channel = manager?.initialize(appContext, appContext.mainLooper, null)
+
+    /** False when this device has no Wi-Fi Direct stack; callers hide the direct-link UI then. */
+    val isSupported: Boolean = manager != null && channel != null
 
     val enabled = mutableStateOf(false)
     val p2pPeers = mutableStateListOf<WifiP2pDevice>()
@@ -65,26 +71,45 @@ class WifiDirectManager(context: Context) {
     }
 
     fun register() {
+        if (!isSupported) return
         ContextCompat.registerReceiver(
             appContext, receiver, intentFilter, ContextCompat.RECEIVER_NOT_EXPORTED,
         )
     }
 
     fun unregister() {
+        if (!isSupported) return
         runCatching { appContext.unregisterReceiver(receiver) }
     }
 
     /**
      * Start peer discovery.
      *
-     * Two things this now handles that it didn't. First, a phone cannot run its own hotspot and
-     * Wi-Fi Direct discovery at the same time — the radio can't be a SoftAP and a P2P device at
-     * once, so the framework returns BUSY. That surfaced as a bare "framework busy, try again"
-     * next to a device list that was never going to populate, with nothing pointing at the cause.
-     * Second, unlike [connect], discovery had no retry at all, so a transient BUSY was fatal.
+     * Several things this handles beyond a bare `discoverPeers()` call. First, a phone cannot run
+     * its own hotspot and Wi-Fi Direct discovery at the same time — the radio can't be a SoftAP and
+     * a P2P device at once, so the framework returns BUSY. That surfaced as a bare "framework busy,
+     * try again" next to a device list that was never going to populate, with nothing pointing at
+     * the cause. Second, discovery had no retry at all, so a transient BUSY was fatal. Third, on a
+     * device with no working Wi-Fi Direct stack at all (TVs, streaming boxes, some emulators) or
+     * with Wi-Fi turned off, fail fast with a message that actually points at the fix.
      */
     @SuppressLint("MissingPermission")
     fun discover() {
+        val manager = manager
+        val channel = channel
+        if (manager == null || channel == null) {
+            lastError.value = UiText(R.string.wd_discover_failed, UiText(R.string.wd_reason_unsupported))
+            return
+        }
+        // Wi-Fi Direct rides on the same radio as regular Wi-Fi: if it's off (or the device has no
+        // working Wi-Fi hardware at all), discoverPeers() below would just fail with an opaque
+        // ERROR/"internal error" from the framework. Check first so the message actually points at
+        // the fix instead of leaving a P2P error code to decode.
+        val wifiManager = appContext.getSystemService(Context.WIFI_SERVICE) as? WifiManager
+        if (wifiManager?.isWifiEnabled == false) {
+            lastError.value = UiText(R.string.wd_discover_failed, UiText(R.string.wd_reason_wifi_off))
+            return
+        }
         lastError.value = null
         if (isHotspotActive()) {
             lastError.value = UiText(R.string.wd_hotspot_conflict)
@@ -95,6 +120,9 @@ class WifiDirectManager(context: Context) {
 
     @SuppressLint("MissingPermission")
     private fun discoverAttempt(attempt: Int) {
+        val manager = manager
+        val channel = channel
+        if (manager == null || channel == null) return
         manager.discoverPeers(channel, object : WifiP2pManager.ActionListener {
             override fun onSuccess() {}
             override fun onFailure(reason: Int) {
@@ -129,6 +157,8 @@ class WifiDirectManager(context: Context) {
 
     @SuppressLint("MissingPermission")
     private fun requestPeers() {
+        val manager = manager ?: return
+        val channel = channel ?: return
         manager.requestPeers(channel) { list ->
             p2pPeers.clear()
             p2pPeers.addAll(list.deviceList)
@@ -143,6 +173,12 @@ class WifiDirectManager(context: Context) {
 
     @SuppressLint("MissingPermission")
     private fun connectAttempt(device: WifiP2pDevice, attempt: Int) {
+        val manager = manager
+        val channel = channel
+        if (manager == null || channel == null) {
+            lastError.value = UiText(R.string.wd_connect_failed, UiText(R.string.wd_reason_unsupported))
+            return
+        }
         val config = WifiP2pConfig().apply { deviceAddress = device.deviceAddress }
         manager.connect(channel, config, object : WifiP2pManager.ActionListener {
             override fun onSuccess() { connectionState.value = UiText(R.string.wd_connecting, device.deviceName) }
@@ -158,6 +194,8 @@ class WifiDirectManager(context: Context) {
     }
 
     private fun requestConnectionInfo() {
+        val manager = manager ?: return
+        val channel = channel ?: return
         manager.requestConnectionInfo(channel) { info: WifiP2pInfo ->
             if (info.groupFormed) {
                 isGroupOwner.value = info.isGroupOwner
@@ -174,7 +212,9 @@ class WifiDirectManager(context: Context) {
     }
 
     fun disconnect() {
-        manager.removeGroup(channel, null)
+        val manager = manager
+        val channel = channel
+        if (manager != null && channel != null) manager.removeGroup(channel, null)
         connectionState.value = UiText(R.string.wd_not_connected)
         groupOwnerAddress.value = null
     }
@@ -187,10 +227,10 @@ class WifiDirectManager(context: Context) {
     }
 
     companion object {
+        private const val MAX_CONNECT_RETRIES = 3
+        private const val CONNECT_RETRY_MS = 1500L
         private val HOTSPOT_IFACE_HINTS = listOf("ap0", "swlan", "wlan1", "softap")
         private const val MAX_DISCOVER_RETRIES = 2
         private const val DISCOVER_RETRY_MS = 1200L
-        private const val MAX_CONNECT_RETRIES = 3
-        private const val CONNECT_RETRY_MS = 1500L
     }
 }

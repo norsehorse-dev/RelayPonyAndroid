@@ -5,6 +5,7 @@ import com.relaypony.crypto.Identity
 import com.relaypony.crypto.Recipient
 import com.relaypony.transport.FrameChunkInputStream
 import com.relaypony.transport.FrameChunkOutputStream
+import com.relaypony.transport.WireNegotiation
 import com.relaypony.transport.WireProtocol
 import kotlinx.serialization.json.Json
 import java.io.ByteArrayInputStream
@@ -57,9 +58,24 @@ object Session {
         senderRecipientHandle: String,
         files: List<OutgoingFile>,
         out: OutputStream,
+        peerMaxWire: Int = 1,
+        reverseIn: InputStream? = null,
+        localCaps: Int = WireProtocol.LOCAL_CAPS,
+        onNegotiated: ((Int, Int) -> Unit)? = null,
         onProgress: ((Long, Long) -> Unit)? = null,
     ) {
-        WireProtocol.writeHello(out, provider.schemeId, deviceName, senderRecipientHandle)
+        // B2 handshake. Speak v2 only when the peer advertised it AND we were given a reverse
+        // channel for its answering HELLO; otherwise the exact v1 monologue, byte-identical.
+        val version = WireNegotiation.version(WireProtocol.MAX_WIRE_VERSION, peerMaxWire)
+        if (version >= 2 && reverseIn != null) {
+            WireProtocol.writeHelloV2(out, provider.schemeId, deviceName, senderRecipientHandle, localCaps)
+            out.flush()                                             // buffered: reach the receiver before we read
+            val peerHello = WireProtocol.readHello(reverseIn)       // blocks until the receiver answers
+            onNegotiated?.invoke(2, WireNegotiation.effectiveCaps(localCaps, peerHello.caps))
+        } else {
+            WireProtocol.writeHello(out, provider.schemeId, deviceName, senderRecipientHandle)
+            onNegotiated?.invoke(1, 0)
+        }
 
         val totalBytes = files.sumOf { it.size }
         var sentBytes = 0L
@@ -102,11 +118,26 @@ object Session {
         identity: Identity,
         input: InputStream,
         sink: FileSink,
+        reverseOut: OutputStream? = null,
+        deviceName: String = "",
+        recipientHandle: String = "",
+        localCaps: Int = WireProtocol.LOCAL_CAPS,
+        onNegotiated: ((Int, Int) -> Unit)? = null,
         onProgress: ((Long, Long) -> Unit)? = null,
     ): ReceiveResult {
         val hello = WireProtocol.readHello(input)
         if (hello.schemeId != provider.schemeId) {
             throw UnsupportedSchemeException(provider.schemeId, hello.schemeId)
+        }
+
+        // B2 handshake. Answer a v2 sender with our HELLO v2 so it learns our capabilities; a v1
+        // sender (version 1) gets no answer, the v1 monologue.
+        if (hello.version >= 2 && reverseOut != null) {
+            WireProtocol.writeHelloV2(reverseOut, provider.schemeId, deviceName, recipientHandle, localCaps)
+            reverseOut.flush()
+            onNegotiated?.invoke(2, WireNegotiation.effectiveCaps(localCaps, hello.caps))
+        } else {
+            onNegotiated?.invoke(hello.version, 0)
         }
 
         val manifestFrame = WireProtocol.readFrame(input)

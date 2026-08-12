@@ -31,6 +31,13 @@ class KeystoreIdentityStore(context: Context) {
         return identity
     }
 
+    /** Overwrite the stored identity with [secret] (an AGE-SECRET-KEY string), re-encrypting it at
+     *  rest with the Keystore key. Used when importing an identity backup; the imported identity
+     *  takes effect on the next launch (a running session keeps the identity it loaded at startup). */
+    fun save(secret: String) {
+        prefs.edit().putString(KEY_CT, encrypt(secret.trim())).apply()
+    }
+
     private fun secretKey(): SecretKey {
         val ks = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         (ks.getEntry(ALIAS, null) as? KeyStore.SecretKeyEntry)?.let { return it.secretKey }

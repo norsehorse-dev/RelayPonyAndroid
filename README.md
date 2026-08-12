@@ -21,6 +21,7 @@ Website: https://relaypony.app
 - **Resilient by design** — the receiver survives a dropped or reset connection and keeps listening; the sender automatically retries transient failures with backoff.
 - **Real progress** — determinate progress on both sender and receiver, plus a graceful stop-receiving control.
 - **Inbox** — received files are listed with type, size, and time; open them, share them, or save them to Downloads (optionally automatically).
+- **Google TV / Android TV** — installable on the big screen (leanback launcher, D-pad navigation). The TV opens on Receive and shows the pairing QR; phones scan it and send straight to the television. No camera needed on the TV — pairing back to a phone works with the on-screen code.
 - **Seven languages** — English, हिन्दी, Español, Deutsch, Français, 日本語, Português (BR), switchable in-app without restarting.
 - **Light / dark theme**, adaptive launcher icon, and a privacy-first posture throughout.
 

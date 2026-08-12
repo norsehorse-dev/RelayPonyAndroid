@@ -10,42 +10,62 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.foundation.text.KeyboardOptions
-import com.relaypony.transport.Beacon
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanOptions
 import com.relaypony.android.R
 import com.relaypony.android.transfer.TransferController
+import com.relaypony.transport.Beacon
 
 @Composable
 fun SendScreen(controller: TransferController) {
     val selected = remember { mutableStateListOf<String>() }
     var byAddress by remember { mutableStateOf(false) }
+    // TV: no camera means no QR scanning; pairing still works via the on-screen SAS code path.
+    val canScan = rememberHasCamera()
+    // TV: Google TV has no document picker, so offering "pick files" would dead-end in a
+    // "no app can perform this action" system message.
+    val canPickFiles = rememberCanPickDocuments()
+
+    // A4: when a Direct Share target opened us, auto-check that device once it is discovered and
+    // still pinned. Best-effort: if the launcher didn't pass the id, or the peer isn't found, the
+    // files are staged anyway and the user picks normally.
+    LaunchedEffect(controller.peers.size, controller.preselectHandle.value) {
+        val wanted = controller.preselectHandle.value ?: return@LaunchedEffect
+        val match = controller.peers.firstOrNull {
+            it.recipientHandle == wanted && controller.isPinned(it.recipientHandle)
+        } ?: return@LaunchedEffect
+        val key = controller.peerKey(match)
+        if (key !in selected) selected.add(key)
+        controller.preselectHandle.value = null
+    }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { controller.pinFromScan(it) }
+        result.contents?.let { controller.stageScan(it) }
     }
     val scanPrompt = stringResource(R.string.send_scan_prompt)
     fun launchScan() {
@@ -94,17 +114,24 @@ fun SendScreen(controller: TransferController) {
                     }
                 }
             }
-            OutlinedButton(
-                onClick = { pickFilesLauncher.launch(arrayOf("*/*")) },
-                modifier = Modifier.fillMaxWidth(),
-            ) { Text(stringResource(R.string.send_add_more)) }
-        } else {
+            if (canPickFiles) {
+                OutlinedButton(
+                    onClick = { pickFilesLauncher.launch(arrayOf("*/*")) },
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text(stringResource(R.string.send_add_more)) }
+            }
+        } else if (canPickFiles) {
             Button(
                 onClick = { pickFilesLauncher.launch(arrayOf("*/*")) },
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(stringResource(R.string.send_pick_files)) }
             Text(
                 stringResource(R.string.send_or_share),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            Text(
+                stringResource(R.string.send_no_picker),
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -160,10 +187,19 @@ fun SendScreen(controller: TransferController) {
                         }
                     }
                     if (!pinned) {
-                        Button(
-                            onClick = { launchScan() },
+                        Row(
                             modifier = Modifier.padding(top = 8.dp),
-                        ) { Text(stringResource(R.string.send_pair)) }
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(onClick = { controller.stageDiscovered(peer) }) {
+                                Text(stringResource(R.string.verify_action))
+                            }
+                            if (canScan) {
+                                OutlinedButton(onClick = { launchScan() }) {
+                                    Text(stringResource(R.string.verify_scan))
+                                }
+                            }
+                        }
                     }
                     if (sendState != null) {
                         Text(
@@ -199,8 +235,37 @@ fun SendScreen(controller: TransferController) {
             }
         }
 
-        HorizontalDivider()
-        WifiDirectSection(controller, asSender = true)
+        if (controller.wifiDirect.isSupported) {
+            HorizontalDivider()
+            WifiDirectSection(controller, asSender = true)
+        }
+    }
+
+    // A2: the review-and-confirm step, mirroring the iOS verify sheet. Shown for a scanned QR
+    // or a tapped discovered device; the same six digits appear on the other device.
+    controller.pendingVerify.value?.let { pv ->
+        AlertDialog(
+            onDismissRequest = { controller.dismissVerify() },
+            title = { Text(stringResource(R.string.verify_title, pv.name)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.verify_code_label), style = MaterialTheme.typography.labelMedium)
+                    Text(
+                        pv.sas,
+                        style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace),
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                    Text(stringResource(R.string.verify_hint, pv.name), style = MaterialTheme.typography.bodySmall)
+                    Text(pv.handle, style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                Button(onClick = { controller.confirmVerify() }) { Text(stringResource(R.string.verify_pair)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { controller.dismissVerify() }) { Text(stringResource(R.string.inbox_cancel)) }
+            },
+        )
     }
 
     if (byAddress) SendByAddressDialog(controller) { byAddress = false }

@@ -24,6 +24,21 @@ import java.io.OutputStream
 object WireProtocol {
     const val WIRE_VERSION: Int = 1
 
+    /** Highest wire version this build speaks. v1 is the frozen monologue; v2 adds the HELLO
+     *  handshake (writeHelloV2 / readHello caps). Advertised as `mw`, and the acceptance ceiling
+     *  in readHello. Bump THIS, not WIRE_VERSION, when teaching a new version. */
+    const val MAX_WIRE_VERSION: Int = 2
+
+    /** HELLO v2 capability bits (little-endian bitmask). Frozen for 2.0; new features take new bits. */
+    const val CAP_WANT_ACK_FLOW: Int = 1 shl 0
+    const val CAP_RESUME: Int = 1 shl 1
+    const val CAP_SHA256: Int = 1 shl 2
+    const val CAP_PATHS: Int = 1 shl 3
+
+    /** Capabilities this build implements, offered in our HELLO v2. Zero for B2 (mechanism first);
+     *  later phases OR their bit in as the feature lands. */
+    const val LOCAL_CAPS: Int = 0
+
     const val HELLO: Byte = 0x01
     const val MANIFEST: Byte = 0x02
     const val FILE_BEGIN: Byte = 0x03
@@ -31,6 +46,18 @@ object WireProtocol {
     const val FILE_END: Byte = 0x05
     const val ACK: Byte = 0x06       // reserved for the bidirectional flow in Phase 3
     const val DONE: Byte = 0x07
+
+    /** Discovery TXT key for the highest wire version a build speaks (wire v2 prep). */
+    const val MW_KEY = "mw"
+
+    /**
+     * Parse a peer's advertised max wire version from the discovery TXT record. Absent or
+     * malformed reads as 1, which is exactly right for every build that predates the key.
+     */
+    fun parseMaxWire(raw: String?): Int {
+        val value = raw?.toIntOrNull() ?: return 1
+        return if (value >= 1) value else 1
+    }
 
     class WireException(message: String) : Exception(message)
 
@@ -40,6 +67,8 @@ object WireProtocol {
         val schemeId: Byte,
         val deviceName: String,
         val recipientHandle: String,
+        /** Capability bitmask from a v2 HELLO; 0 for a v1 HELLO (no caps tail). */
+        val caps: Int = 0,
     )
 
     fun writeFrame(out: OutputStream, type: Byte, payload: ByteArray) {
@@ -71,6 +100,24 @@ object WireProtocol {
         writeFrame(out, HELLO, body.toByteArray())
     }
 
+    /** Write a v2 HELLO: the v1 body plus a `[u16 capsLen][caps]` tail (caps little-endian, byte 0
+     *  first). Used only once both sides are known to speak v2; a v1 peer never sees this. */
+    fun writeHelloV2(out: OutputStream, schemeId: Byte, deviceName: String, recipientHandle: String, caps: Int) {
+        val name = deviceName.toByteArray(Charsets.UTF_8)
+        val handle = recipientHandle.toByteArray(Charsets.UTF_8)
+        val body = ByteArrayOutputStream()
+        body.write(MAX_WIRE_VERSION and 0xff)
+        body.write(schemeId.toInt() and 0xff)
+        writeU16(body, name.size)
+        body.write(name)
+        writeU16(body, handle.size)
+        body.write(handle)
+        writeU16(body, 2)                       // capsLen
+        body.write(caps and 0xff)               // byte 0 (low)
+        body.write((caps ushr 8) and 0xff)      // byte 1 (high)
+        writeFrame(out, HELLO, body.toByteArray())
+    }
+
     fun readHello(input: InputStream): Hello {
         val frame = readFrame(input) ?: throw WireException("expected HELLO, got EOF")
         if (frame.type != HELLO) throw WireException("expected HELLO frame, got type ${frame.type}")
@@ -86,10 +133,26 @@ object WireProtocol {
             val b = p.copyOfRange(i, i + n); i += n; return b
         }
         val version = u8()
+        if (version < 1 || version > MAX_WIRE_VERSION) {
+            // The version byte is enforced. Trailing HELLO bytes past the caps tail stay ignored
+            // (pinned by tests) so a future version can append more.
+            throw WireException("unsupported wire version $version (this build speaks up to $MAX_WIRE_VERSION)")
+        }
         val scheme = u8().toByte()
         val name = String(take(u16()), Charsets.UTF_8)
         val handle = String(take(u16()), Charsets.UTF_8)
-        return Hello(version, scheme, name, handle)
+
+        // v2+: a [u16 capsLen][caps] tail follows. Parse the first two caps bytes as the
+        // little-endian bitmask, ignore any beyond, and tolerate the tail being absent.
+        var caps = 0
+        if (version >= 2 && i + 2 <= p.size) {
+            val capsLen = u16()
+            val available = minOf(capsLen, p.size - i)
+            if (available >= 1) caps = p[i].toInt() and 0xff
+            if (available >= 2) caps = caps or ((p[i + 1].toInt() and 0xff) shl 8)
+            i += available
+        }
+        return Hello(version, scheme, name, handle, caps)
     }
 
     // --- byte helpers ---

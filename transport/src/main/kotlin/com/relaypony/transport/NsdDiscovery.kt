@@ -12,8 +12,9 @@ import android.os.Looper
  * [NsdManager]. Android-only and not unit-testable on the JVM; exercised by the app harness on
  * real devices.
  *
- * Carries two TXT attributes so a discovered peer is immediately usable: "name" (display name)
- * and "rcpt" (the sender's recipient handle, i.e. its `age1...` string). In Phase 3 this means a
+ * Carries three TXT attributes so a discovered peer is immediately usable: "name" (display name),
+ * "rcpt" (the sender's recipient handle, i.e. its `age1...` string), and "mw" (the highest wire
+ * version this build speaks; wire v2 prep — absent on older builds and parsed as 1). In Phase 3 this means a
  * device can encrypt to a discovered peer without manual key entry. NOTE: trusting the recipient
  * from the discovery channel is trust-on-first-use; Phase 4's QR pairing replaces it with an
  * out-of-band, MITM-resistant key exchange.
@@ -27,6 +28,8 @@ class NsdDiscovery(context: Context) {
         val host: String,
         val port: Int,
         val recipientHandle: String,
+        /** Highest wire version the peer advertised ("mw"); 1 when absent (any older build). */
+        val maxWire: Int = 1,
     )
 
     private val appContext = context.applicationContext
@@ -45,6 +48,8 @@ class NsdDiscovery(context: Context) {
             this.port = port
             setAttribute("name", deviceName)
             setAttribute("rcpt", recipientHandle)
+            // The version this build actually speaks — honest by construction; flips with WIRE_VERSION.
+            setAttribute(WireProtocol.MW_KEY, WireProtocol.MAX_WIRE_VERSION.toString())
         }
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(info: NsdServiceInfo) {}
@@ -83,7 +88,8 @@ class NsdDiscovery(context: Context) {
                 @Suppress("DEPRECATION")
                 val host = resolved.host?.hostAddress ?: return
                 val name = attrs["name"]?.toString(Charsets.UTF_8) ?: resolved.serviceName
-                main.post { onPeer(Peer(name, host, resolved.port, rcpt)) }
+                val maxWire = WireProtocol.parseMaxWire(attrs[WireProtocol.MW_KEY]?.toString(Charsets.UTF_8))
+                main.post { onPeer(Peer(name, host, resolved.port, rcpt, maxWire)) }
             }
         })
     }

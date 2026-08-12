@@ -63,6 +63,7 @@
     <string name="send_add_more">Add more files</string>
     <string name="send_pick_files">Pick files to send</string>
     <string name="send_or_share">Or share into RelayPony from another app\'s share menu.</string>
+    <string name="send_no_picker">No file browser is available on this device. Send from your phone instead — this device can still receive.</string>
     <string name="send_to_device_title">Send to a device</string>
     <string name="send_refresh">Refresh</string>
     <string name="send_looking">Looking for devices on your Wi-Fi. Open the other phone on its Receive tab, then tap Refresh.</string>
@@ -132,6 +133,7 @@
     <string name="st_group_finished">Group send finished (%1$d device(s))</string>
     <string name="st_removed">Removed %1$s</string>
     <string name="st_open_failed">Can\'t open %1$s: %2$s</string>
+    <string name="st_open_no_viewer">No app on this device can open %1$s.</string>
     <string name="st_sending">Sending\u2026</string>
     <string name="st_sent">Sent</string>
     <string name="st_failed">Failed: %1$s</string>
@@ -153,6 +155,7 @@
     <string name="wd_discover_failed">Discover failed (%1$s)</string>
     <string name="wd_connect_failed">Connect failed (%1$s)</string>
     <string name="wd_reason_unsupported">Wi-Fi Direct unsupported on this device</string>
+    <string name="wd_reason_wifi_off">Wi-Fi is turned off</string>
     <string name="wd_reason_busy">framework busy, try again</string>
     <string name="wd_reason_internal">internal error</string>
     <string name="wd_reason_other">reason %1$d</string>
@@ -170,6 +173,29 @@
     <string name="rec_receiving">Receiving…</string>
     <string name="st_send_retrying">Connection lost, retrying… (%1$d)</string>
     <string name="wd_arm_send_pick">Pick files first</string>
+    <!-- Legal & protection (Update 1) -->
+    <string name="set_protect_title">How your files are protected</string>
+    <string name="set_protect_body">Files are encrypted end to end with the age protocol and travel directly between the two phones. No server ever stores your files, and RelayPony has no account to sign in to.</string>
+    <string name="set_legal">Legal</string>
+    <string name="set_privacy_title">Privacy Policy</string>
+    <string name="set_privacy_desc">How RelayPony handles your data</string>
+    <string name="set_terms_title">Terms of Service</string>
+    <string name="set_terms_desc">The terms for using RelayPony</string>
+    <!-- Feedback & support (Update 2) -->
+    <string name="set_feedback">Feedback &amp; Support</string>
+    <string name="set_rate_title">Rate RelayPony</string>
+    <string name="set_rate_desc">Leave a review on Google Play</string>
+    <string name="set_support_title">Email support</string>
+    <string name="set_support_desc">Get help or report a problem</string>
+
+    <!-- Verify before pairing (A2) -->
+    <string name="verify_title">Pair with %1$s</string>
+    <string name="verify_code_label">Verification code</string>
+    <string name="verify_hint">If %1$s shows this same code, the connection is verified.</string>
+    <string name="verify_pair">Pair this device</string>
+    <string name="verify_action">Verify &amp; pair</string>
+    <string name="verify_scan">Scan code</string>
+
     <!-- Wi-Fi Direct: the radio cannot be a hotspot and a P2P device at the same time. -->
     <string name="wd_hotspot_conflict">Turn off your hotspot first — a phone can\'t share a hotspot and use Wi-Fi Direct at the same time.</string>
 

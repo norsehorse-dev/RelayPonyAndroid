@@ -52,7 +52,7 @@ fun TransferScreen(controller: TransferController, modifier: Modifier = Modifier
     }
 
     val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { controller.pinFromScan(it) }
+        result.contents?.let { controller.stageScan(it) }
     }
     val pickFilesLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()

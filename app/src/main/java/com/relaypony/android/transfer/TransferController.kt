@@ -6,25 +6,37 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.content.res.Resources
 import android.net.Uri
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.webkit.MimeTypeMap
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
+import androidx.core.content.pm.ShortcutInfoCompat
+import androidx.core.content.pm.ShortcutManagerCompat
+import androidx.core.graphics.drawable.IconCompat
+import com.relaypony.android.MainActivity
 import com.relaypony.android.R
 import com.relaypony.crypto.AgeProvider
 import com.relaypony.session.FanOut
 import com.relaypony.session.FileNames
+import com.relaypony.session.IdentityBackup
 import com.relaypony.session.OutgoingFile
 import com.relaypony.session.Ident
 import com.relaypony.session.SocketTransfer
 import com.relaypony.session.WifiIdent
 import com.relaypony.session.inbox.ReceivedFile
 import com.relaypony.session.pairing.Pairing
+import com.relaypony.session.pairing.Sas
 import java.util.Locale
 import com.relaypony.session.pairing.QrPayload
 import com.relaypony.transport.Beacon
@@ -110,6 +122,10 @@ class TransferController(context: Context) {
     /** Classifies the last status update so the UI never parses display text. */
     val lastStatusKind = mutableStateOf(StatusKind.OTHER)
 
+    /** Result of the last openFile() attempt, shown inline on the Inbox screen. Kept separate from
+     *  [status] (which nothing renders on that tab) so a failed open is never a silent no-op. */
+    val openError = mutableStateOf<String?>(null)
+
     enum class StatusKind { OTHER, RECEIVED }
 
     private fun localizedContext(): Context {
@@ -164,6 +180,9 @@ class TransferController(context: Context) {
     /** Bumped whenever the trust store changes, so the UI re-classifies peers. */
     val trustRevision = mutableIntStateOf(0)
 
+    /** True while an identity export/import is running (disables the buttons in Settings). */
+    val identityBusy = mutableStateOf(false)
+
     private var serverSocket: ServerSocket? = null
 
     /** Whether the LAN listener is currently accepting connections (drives the Receive UI). */
@@ -178,8 +197,69 @@ class TransferController(context: Context) {
 
     init {
         refreshInbox()
+        refreshShareShortcuts()
         wifiDirect.onConnected = { isGroupOwner, goAddress -> onWifiConnected(isGroupOwner, goAddress) }
     }
+
+    /** A4: a handle a Direct Share target asked us to pre-select on the Send screen, or null.
+     *  Consumed by SendScreen once the matching peer is discovered; best-effort by nature. */
+    val preselectHandle = mutableStateOf<String?>(null)
+
+    /** Called from MainActivity when the app was opened via a Direct Share target. Remembers the
+     *  device to pre-check and makes sure discovery is running so it can actually be found. */
+    fun preselectForSend(handle: String) {
+        preselectHandle.value = handle
+        startDiscovery()
+    }
+
+    /** A4: publish the paired devices as Direct Share targets, newest pins first, capped to the
+     *  launcher's per-activity limit. Called on launch and whenever a new device is pinned; there
+     *  is no unpair path on Android today, so this set only grows until reinstall. All wrapped in
+     *  runCatching because shortcut publishing is a best-effort convenience, never load-bearing. */
+    private fun refreshShareShortcuts() {
+        runCatching {
+            val max = ShortcutManagerCompat.getMaxShortcutCountPerActivity(appContext).coerceAtLeast(1)
+            val shortcuts = trustStore.all()
+                .sortedByDescending { it.pinnedAtEpochMs }
+                .take(max)
+                .map { device ->
+                    val label = device.name.ifBlank { appContext.getString(R.string.app_name) }
+                    ShortcutInfoCompat.Builder(appContext, SHORTCUT_PREFIX + device.recipientHandle)
+                        .setShortLabel(label)
+                        .setLongLabel(label)
+                        .setIcon(monogramIcon(label))
+                        .setCategories(setOf(SHARE_CATEGORY))
+                        .setLongLived(true)
+                        .setIntent(Intent(appContext, MainActivity::class.java).setAction(Intent.ACTION_MAIN))
+                        .build()
+                }
+            ShortcutManagerCompat.setDynamicShortcuts(appContext, shortcuts)
+        }
+    }
+
+    /** A simple round monogram so the Direct Share faces are distinguishable. Falls back to the
+     *  launcher icon if anything about drawing fails. */
+    private fun monogramIcon(name: String): IconCompat = runCatching {
+        val size = 192
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+        canvas.drawCircle(
+            size / 2f, size / 2f, size / 2f,
+            Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.rgb(0x5A, 0x4F, 0xE0) },
+        )
+        val initials = name.trim().split(Regex("\\s+"))
+            .mapNotNull { it.firstOrNull()?.uppercaseChar() }
+            .take(2).joinToString("").ifEmpty { "?" }
+        val text = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textSize = size * 0.42f
+            textAlign = Paint.Align.CENTER
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val baseline = size / 2f - (text.descent() + text.ascent()) / 2f
+        canvas.drawText(initials, size / 2f, baseline, text)
+        IconCompat.createWithBitmap(bmp)
+    }.getOrElse { IconCompat.createWithResource(appContext, R.mipmap.ic_launcher) }
 
     private fun refreshInbox() {
         inbox.clear()
@@ -201,6 +281,49 @@ class TransferController(context: Context) {
      * needs exactly that list, because pairing is what supplies the key.
      */
     fun pairedDevices(): List<com.relaypony.session.pairing.PinnedDevice> = trustStore.all()
+
+    /** Export this device's identity + paired devices to [uri] as a passphrase-protected age file. */
+    fun exportIdentity(uri: Uri, passphrase: String) {
+        identityBusy.value = true
+        setStatus("Exporting identity…")
+        thread {
+            val result = runCatching {
+                appContext.contentResolver.openOutputStream(uri)?.use { out ->
+                    IdentityBackup.export(passphrase, provider.identityToString(identity), trustStore.all(), out)
+                } ?: error("couldn't open the destination file")
+            }
+            main.post {
+                identityBusy.value = false
+                setStatus(result.fold({ "Identity exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
+            }
+        }
+    }
+
+    /** Import an identity backup from [uri]: persist its keypair (takes effect next launch) and
+     *  merge its paired devices into the trust store immediately. */
+    fun importIdentity(uri: Uri, passphrase: String) {
+        identityBusy.value = true
+        setStatus("Importing identity…")
+        thread {
+            val result = runCatching {
+                appContext.contentResolver.openInputStream(uri)?.use { IdentityBackup.import(passphrase, it) }
+                    ?: error("couldn't open the backup file")
+            }
+            main.post {
+                identityBusy.value = false
+                result.fold(
+                    { imported ->
+                        identityStore.save(imported.identitySecret)
+                        imported.devices.forEach { trustStore.pin(it.recipientHandle, it.name, it.pinnedAtEpochMs) }
+                        trustRevision.intValue++
+                        refreshShareShortcuts()
+                        setStatus("Imported ${imported.devices.size} device(s). Restart RelayPony to switch to the imported identity.")
+                    },
+                    { setStatus("Import failed: ${it.message ?: "unknown error"}") },
+                )
+            }
+        }
+    }
 
     fun needsStoragePermission(): Boolean =
         Build.VERSION.SDK_INT < Build.VERSION_CODES.Q &&
@@ -286,15 +409,54 @@ class TransferController(context: Context) {
         setPendingShare(files)
     }
 
-    fun pinFromScan(qrText: String) {
+    /** A peer held for verification before it is trusted (A2). The SAS is derived from both
+     *  handles (sorted, so it is symmetric), which means the same six digits appear on the other
+     *  device's verify sheet — the mutual check the iOS side has shown since its phase 7. */
+    data class PendingVerify(val handle: String, val name: String, val sas: String)
+
+    /** Non-null while the verify dialog should be showing. */
+    val pendingVerify = mutableStateOf<PendingVerify?>(null)
+
+    /** Decode a scanned QR and stage it for verification, without trusting it yet. */
+    fun stageScan(qrText: String) {
         try {
             val payload = QrPayload.decode(qrText)
-            Pairing.pinScanned(payload, trustStore)
-            trustRevision.intValue++
-            setStatus(str(R.string.st_paired_with, payload.deviceName))
+            pendingVerify.value = PendingVerify(
+                payload.recipientHandle,
+                payload.deviceName,
+                Sas.code(myHandle, payload.recipientHandle),
+            )
         } catch (t: Throwable) {
             setStatus(str(R.string.st_pairing_failed))
         }
+    }
+
+    /** Stage a device discovered over mDNS for verification. Both sides already know each
+     *  other's handle from discovery, so no camera is needed and the codes match. */
+    fun stageDiscovered(peer: NsdDiscovery.Peer) {
+        pendingVerify.value = PendingVerify(
+            peer.recipientHandle,
+            peer.name,
+            Sas.code(myHandle, peer.recipientHandle),
+        )
+    }
+
+    /** Trust the staged peer after the user compared the code. Same pin as a scanned payload. */
+    fun confirmVerify() {
+        val pv = pendingVerify.value ?: return
+        try {
+            trustStore.pin(pv.handle, pv.name)
+            trustRevision.intValue++
+            refreshShareShortcuts()
+            setStatus(str(R.string.st_paired_with, pv.name))
+        } catch (t: Throwable) {
+            setStatus(str(R.string.st_pairing_failed))
+        }
+        pendingVerify.value = null
+    }
+
+    fun dismissVerify() {
+        pendingVerify.value = null
     }
 
     fun startReceiving() {
@@ -318,6 +480,8 @@ class TransferController(context: Context) {
                 try {
                     val result = SocketTransfer.receiveOnceFrom(
                         server, provider, identity,
+                        deviceName = deviceName,
+                        recipientHandle = myHandle,
                         onProgress = { recvd, total ->
                             main.post {
                                 receiveInProgress.value = true
@@ -396,11 +560,9 @@ class TransferController(context: Context) {
 
     /**
      * A beacon sighting is the same device mDNS would have reported, so it joins the same list.
-     * The wire version the peer announced is dropped here because this build's [NsdDiscovery.Peer]
-     * has no field for it — this tree speaks v1 only, so there is nothing to negotiate yet.
      */
     private fun addBeaconPeer(peer: BeaconDiscovery.Peer) {
-        addPeer(NsdDiscovery.Peer(peer.name, peer.host, peer.port, peer.recipientHandle))
+        addPeer(NsdDiscovery.Peer(peer.name, peer.host, peer.port, peer.recipientHandle, peer.maxWire))
     }
 
     /**
@@ -508,6 +670,7 @@ class TransferController(context: Context) {
                     try {
                         SocketTransfer.sendTo(
                             peer.host, peer.port, provider, listOf(recipient), deviceName, myHandle, files,
+                            peerMaxWire = peer.maxWire,
                         ) { sent, total ->
                             main.post { sendProgress[key] = if (total > 0) sent.toFloat() / total else 1f }
                         }
@@ -537,19 +700,60 @@ class TransferController(context: Context) {
     }
 
     fun openFile(file: ReceivedFile) {
+        openError.value = null
         try {
             val uri = FileProvider.getUriForFile(
                 appContext,
                 "${appContext.packageName}.fileprovider",
                 File(file.localPath),
             )
+            // The sender's mime detection can fall back to the generic "application/octet-stream"
+            // (both the Android and iOS clients do this when the platform can't classify the file),
+            // which no video/image viewer declares a filter for. When we see that generic fallback,
+            // re-derive a real mime from the file's extension instead — the extension is more
+            // reliable here than whatever the sender managed to report.
+            val effectiveMime = if (file.mime.isBlank() || file.mime == "application/octet-stream") {
+                val ext = file.name.substringAfterLast('.', "").lowercase(Locale.US)
+                MimeTypeMap.getSingleton().getMimeTypeFromExtension(ext) ?: file.mime
+            } else {
+                file.mime
+            }
+            // Request the broad major type (image/*, video/*) rather than the exact subtype.
+            // Android's intent-filter matching is wildcard-symmetric in both directions, so this
+            // only widens which viewer apps match — it can't exclude one that matched before —
+            // and it catches viewers that only declared the wildcard type themselves.
+            val isMedia = effectiveMime.startsWith("image/") || effectiveMime.startsWith("video/")
+            val viewType = when {
+                effectiveMime.startsWith("image/") -> "image/*"
+                effectiveMime.startsWith("video/") -> "video/*"
+                else -> effectiveMime
+            }
             val intent = Intent(Intent.ACTION_VIEW).apply {
-                setDataAndType(uri, file.mime)
+                setDataAndType(uri, viewType)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION or Intent.FLAG_ACTIVITY_NEW_TASK)
             }
-            appContext.startActivity(intent)
+            // For images/video, check for a handler up front so a TV with no installed viewer gets
+            // a clear, translated message instead of a silent no-op or a raw exception string. This
+            // check needs the matching <queries> entries in the manifest to see real apps on API 30+;
+            // other mime types keep the old start-and-catch path since we can't declare <queries> for
+            // every arbitrary type a received file might be.
+            val matches = appContext.packageManager
+                .queryIntentActivities(intent, PackageManager.MATCH_DEFAULT_ONLY)
+            if (isMedia && matches.isEmpty()) {
+                openError.value = str(R.string.st_open_no_viewer, file.name)
+                return
+            }
+            // Explicit chooser rather than an implicit launch: with exactly one match, plain
+            // startActivity() silently jumps straight into that app with no confirmation, which is
+            // indistinguishable from "nothing happened" if that app can't actually read a content://
+            // URI and fails silently inside its own process. The chooser always shows what RelayPony
+            // thinks can open the file, so a bad match is visible instead of a dead end.
+            val chooser = Intent.createChooser(intent, file.name).apply {
+                addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            }
+            appContext.startActivity(chooser)
         } catch (t: Throwable) {
-            setStatus(str(R.string.st_open_failed, file.name, t.message ?: ""))
+            openError.value = str(R.string.st_open_failed, file.name, t.message ?: "")
         }
     }
 
@@ -725,6 +929,10 @@ class TransferController(context: Context) {
     private data class Written(val name: String, val size: Long, val mime: String, val path: String)
 
     companion object {
+        /** Dynamic-shortcut id prefix; the suffix is the peer's recipient handle (A4). */
+        const val SHORTCUT_PREFIX = "relaypony_peer_"
+        /** Must match the category in res/xml/shortcuts.xml (A4). */
+        const val SHARE_CATEGORY = "com.relaypony.android.directshare.SEND"
         private const val KEY_AUTOSAVE = "autosave"
         private const val KEY_ONBOARDED = "onboarded"
         private const val KEY_LANG = "lang"

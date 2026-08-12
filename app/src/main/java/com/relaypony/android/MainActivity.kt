@@ -1,6 +1,7 @@
 package com.relaypony.android
 
 import android.content.Context
+import android.content.Intent
 import android.content.ContextWrapper
 import android.content.res.Configuration
 import android.content.res.Resources
@@ -31,6 +32,10 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         // If launched from another app's share sheet, resolve the shared files up front.
         val sharedFiles = SharedFiles.fromIntent(this, intent)
+        // A4: if launched from a Direct Share target, its shortcut id carries the peer handle.
+        val preselectHandle = intent.getStringExtra(Intent.EXTRA_SHORTCUT_ID)
+            ?.takeIf { it.startsWith(TransferController.SHORTCUT_PREFIX) }
+            ?.removePrefix(TransferController.SHORTCUT_PREFIX)
         setContent {
             val ctrl = remember { TransferController(applicationContext).also { controller = it } }
 
@@ -68,6 +73,7 @@ class MainActivity : AppCompatActivity() {
                 RelayPonyTheme(darkTheme = darkTheme) {
                     LaunchedEffect(Unit) {
                         if (sharedFiles.isNotEmpty()) ctrl.setPendingShare(sharedFiles)
+                        if (preselectHandle != null) ctrl.preselectForSend(preselectHandle)
                     }
                     RelayPonyApp(ctrl)
                 }
