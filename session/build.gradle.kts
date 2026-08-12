@@ -37,6 +37,12 @@ dependencies {
     implementation(project(":crypto"))
     implementation(project(":transport"))
     implementation(libs.kotlinx.serialization.json)
+    // IdentityBackup encrypts/decrypts directly with age's scrypt recipient/identity types, so
+    // this module needs its own line on agepony-core: crypto's dependency on it is
+    // `implementation`, which by design doesn't leak transitively to session. Resolved to the
+    // :agepony-core project of the AgePonyAndroid composite build via the dependencySubstitution
+    // rule in settings.gradle.kts; the version below is a placeholder that substitution replaces.
+    implementation("com.agepony:agepony-core:1.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")
