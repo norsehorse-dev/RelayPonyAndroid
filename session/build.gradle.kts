@@ -43,6 +43,7 @@ dependencies {
     // :agepony-core project of the AgePonyAndroid composite build via the dependencySubstitution
     // rule in settings.gradle.kts; the version below is a placeholder that substitution replaces.
     implementation("com.agepony:agepony-core:1.0")
+    implementation("com.ponydirect:ponydirect:0.1.0")
 
     testImplementation(platform("org.junit:junit-bom:5.10.2"))
     testImplementation("org.junit.jupiter:junit-jupiter")

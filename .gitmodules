@@ -1,3 +1,6 @@
 [submodule "AgePonyAndroid"]
 	path = AgePonyAndroid
 	url = https://github.com/norsehorse-dev/AgePonyAndroid.git
+[submodule "PonyDirect-Kotlin"]
+	path = PonyDirect-Kotlin
+	url = https://github.com/norsehorse-dev/PonyDirect-Kotlin.git

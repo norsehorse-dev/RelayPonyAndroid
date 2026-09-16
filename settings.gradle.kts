@@ -52,3 +52,24 @@ include(":app")
 include(":crypto")
 include(":transport")
 include(":session")
+
+// PonyDirect provides the peer-to-peer WAN transport, consumed the same way as AgePony: a sibling
+// checkout at ../PonyDirect-Kotlin for local dev, else the PonyDirect-Kotlin git submodule inside
+// this repo for a fresh clone / CI / F-Droid (git submodule update --init --recursive).
+val ponyDirectSibling = settingsDir.resolve("../PonyDirect-Kotlin")
+val ponyDirectSubmodule = settingsDir.resolve("PonyDirect-Kotlin")
+val ponyDirectBuild = when {
+    ponyDirectSibling.resolve("settings.gradle.kts").exists() ||
+        ponyDirectSibling.resolve("settings.gradle").exists() -> ponyDirectSibling
+    ponyDirectSubmodule.resolve("settings.gradle.kts").exists() ||
+        ponyDirectSubmodule.resolve("settings.gradle").exists() -> ponyDirectSubmodule
+    else -> error(
+        "PonyDirect build not found. This repository needs the PonyDirect-Kotlin submodule: run " +
+        "git submodule update --init --recursive (or clone with --recursive)."
+    )
+}
+includeBuild(ponyDirectBuild) {
+    dependencySubstitution {
+        substitute(module("com.ponydirect:ponydirect")).using(project(":ponydirect"))
+    }
+}
