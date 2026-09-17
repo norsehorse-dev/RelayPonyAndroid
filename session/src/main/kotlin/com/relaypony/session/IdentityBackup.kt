@@ -49,6 +49,39 @@ object IdentityBackup {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val envelopeSerializer = Envelope.serializer()
 
+    @Serializable
+    private data class AddressEnvelope(
+        val version: Int = FORMAT_VERSION,
+        val kind: String = "addresses",
+        val devices: List<Dev>,
+    )
+    private val addressSerializer = AddressEnvelope.serializer()
+
+    /** Export ONLY the address book (paired devices), scrypt-encrypted. No identity secret, so it
+     *  merges elsewhere without touching that device's identity. */
+    fun exportAddresses(passphrase: String, devices: List<PinnedDevice>, out: OutputStream) {
+        val env = AddressEnvelope(devices = devices.map { Dev(it.recipientHandle, it.name, it.pinnedAtEpochMs) })
+        val plain = json.encodeToString(addressSerializer, env).toByteArray(Charsets.UTF_8)
+        Age.encryptStream(ByteArrayInputStream(plain), listOf(ScryptRecipient(passphrase)), out)
+    }
+
+    /** Decrypt an addresses backup and return its devices to MERGE. Also accepts a full identity
+     *  backup, extracting just its devices (the identity secret is ignored). */
+    fun importAddresses(passphrase: String, input: InputStream): List<PinnedDevice> {
+        val plain = ByteArrayOutputStream()
+        try {
+            Age.decryptStream(input, listOf(ScryptIdentity(passphrase)), plain)
+        } catch (_: Age.NoMatchingIdentityException) {
+            throw IllegalArgumentException("wrong passphrase, or not a RelayPony backup")
+        }
+        val text = String(plain.toByteArray(), Charsets.UTF_8)
+        runCatching { json.decodeFromString(addressSerializer, text) }.getOrNull()
+            ?.let { return it.devices.map { d -> PinnedDevice(d.handle, d.name, d.pinnedAtEpochMs) } }
+        runCatching { json.decodeFromString(envelopeSerializer, text) }.getOrNull()
+            ?.let { return it.devices.map { d -> PinnedDevice(d.handle, d.name, d.pinnedAtEpochMs) } }
+        throw IllegalArgumentException("backup is unreadable")
+    }
+
     /** Serialize {identity, devices} to JSON and scrypt-encrypt it to [passphrase], streamed to [out]. */
     fun export(passphrase: String, identitySecret: String, devices: List<PinnedDevice>, out: OutputStream) {
         val envelope = Envelope(

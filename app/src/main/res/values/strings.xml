@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">RelayPony</string>
+    <string name="app_name" translatable="false">RelayPony</string>
 
     <!-- Navigation -->
     <string name="nav_send">Send</string>
@@ -215,4 +215,88 @@
     <string name="st_manual_bad_address">That doesn\'t look like a valid address and port.</string>
     <string name="st_manual_not_paired">Not paired with %1$s — pair over Wi-Fi first.</string>
     <string name="st_pick_files_first">Pick files to send first.</string>
+    <!-- RelayPony 3.0: WAN transfer + settings consistency -->
+    <string name="set_help_header">Help</string>
+    <string name="set_help_faq_t">Help &amp; FAQ</string>
+    <string name="set_help_faq_d">Guides and answers at relaypony.app</string>
+    <string name="set_help_rate_t">Rate RelayPony</string>
+    <string name="set_help_rate_d">Leave a review on Google Play</string>
+    <string name="set_help_feedback_t">Send feedback</string>
+    <string name="set_help_feedback_d">Email the developer</string>
+    <string name="set_help_privacy_t">Privacy policy</string>
+    <string name="set_help_privacy_d">How RelayPony handles your data</string>
+    <string name="set_help_security_t">Security &amp; encryption</string>
+    <string name="set_help_security_d">How your transfers are protected</string>
+    <string name="set_more_header">More from NorseHorse</string>
+    <string name="set_more_pgpony_d">OpenPGP encryption for your phone</string>
+    <string name="set_more_agepony_d">Simple, modern file encryption (age)</string>
+    <string name="set_more_quorumpony_d">Quorum key backup &amp; recovery</string>
+    <string name="set_more_carrierpony_d">PGP chat and encrypted files</string>
+    <string name="set_more_burnpony_d">Self-destructing encrypted messages</string>
+    <string name="set_more_vaultpony_d">Encrypted vault for your files</string>
+    <string name="set_more_passpony_d">Password manager</string>
+    <string name="set_more_scrubpony_d">Strip metadata from your files</string>
+    <string name="set_more_family_t">See the full pony family</string>
+    <string name="set_more_family_d">Every NorseHorse app in one place</string>
+    <string name="set_more_appsrc_t">App source on GitHub</string>
+    <string name="set_more_appsrc_d">RelayPony for Android (open source)</string>
+    <string name="set_more_core_t">Protocol &amp; crypto core on GitHub</string>
+    <string name="set_more_core_d">Open source (Apache-2.0). Inspect the protocol</string>
+    <string name="set_backup_header">Backup</string>
+    <string name="set_backup_body">Identity backup includes this device\'s key plus every paired device, so a restore is the whole app. Address book export is just your paired devices. Share it with another of your own devices without moving your identity.</string>
+    <string name="set_backup_export_identity">Export identity</string>
+    <string name="set_backup_import_identity">Import identity</string>
+    <string name="set_backup_export_addresses">Export addresses</string>
+    <string name="set_backup_import_addresses">Import addresses</string>
+    <string name="set_backup_pass_export">Choose a passphrase. You\'ll need it to restore this backup.</string>
+    <string name="set_backup_pass_import">Enter the passphrase this backup was created with.</string>
+    <string name="set_backup_pass_label">Passphrase</string>
+    <string name="set_backup_export_action">Export</string>
+    <string name="set_backup_import_action">Import</string>
+    <string name="set_relay_header">Relay server</string>
+    <string name="set_relay_body">When two paired devices can\'t reach each other directly, RelayPony uses a small relay to broker the connection. Only when a direct link can\'t be made does it pass the transfer through as a fallback. Everything through the relay is end-to-end encrypted, so it only ever sees ciphertext, never your files or keys. Both devices must use the same relay. Leave the default, or run your own.</string>
+    <string name="set_relay_url_label">Relay URL</string>
+    <string name="set_relay_save">Save</string>
+    <string name="set_relay_reset">Reset</string>
+    <string name="set_relay_saved">Relay server saved.</string>
+    <string name="set_relay_reset_done">Relay server reset to default.</string>
+    <string name="set_relay_selfhost_t">How to self-host</string>
+    <string name="set_relay_selfhost_d">Run your own relay in a few commands</string>
+    <string name="set_relay_repo_t">Relay server on GitHub</string>
+    <string name="set_relay_repo_d">Open source (Apache-2.0). PHP and MySQL</string>
+    <string name="set_about_compat">Compatibility: Android 6.0+ (API 23)</string>
+    <string name="set_about_encryption">Encryption: age (X25519)</string>
+    <string name="set_about_transport">Transport: PonyDirect</string>
+    <string name="set_about_version">RelayPony %1$s (build %2$s)</string>
+    <string name="set_about_licenses_t">Licenses</string>
+    <string name="set_about_licenses_d">Open-source components used in RelayPony</string>
+    <string name="send_wan_header">Send over the internet</string>
+    <string name="send_wan_empty">Devices you\'ve paired show up here to send to over the internet, even when they\'re not nearby.</string>
+    <string name="send_wan_send">Send</string>
+    <string name="rec_wan_header">Receive over the internet</string>
+    <string name="rec_wan_on">On while RelayPony is open</string>
+    <string name="rec_wan_off">Off</string>
+    <string name="wan_ready">Ready to receive over the internet</string>
+    <string name="wan_in_progress">A transfer to this device is already in progress.</string>
+    <string name="wan_add_files">Add files to send first.</string>
+    <string name="wan_preparing">Preparing…</string>
+    <string name="wan_prepare_failed">Couldn\'t prepare files: %1$s</string>
+    <string name="wan_connecting">Connecting…</string>
+    <string name="wan_sending">Sending…</string>
+    <string name="wan_sending_relay">Sending via relay…</string>
+    <string name="wan_sent">Sent</string>
+    <string name="wan_send_failed">Send failed</string>
+    <string name="wan_receiving">Receiving…</string>
+    <string name="wan_receiving_relay">Receiving via relay…</string>
+    <string name="wan_received">Received %1$d file(s) from %2$s</string>
+    <string name="wan_receive_failed">Receive failed: %1$s</string>
+    <string name="wan_unknown_error">unknown error</string>
+    <string name="set_more_pgpony" translatable="false">PGPony</string>
+    <string name="set_more_agepony" translatable="false">AgePony</string>
+    <string name="set_more_quorumpony" translatable="false">QuorumPony</string>
+    <string name="set_more_carrierpony" translatable="false">CarrierPony</string>
+    <string name="set_more_burnpony" translatable="false">BurnPony</string>
+    <string name="set_more_vaultpony" translatable="false">VaultPony</string>
+    <string name="set_more_passpony" translatable="false">PassPony</string>
+    <string name="set_more_scrubpony" translatable="false">ScrubPony</string>
 </resources>

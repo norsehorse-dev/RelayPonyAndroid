@@ -24,6 +24,8 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -75,6 +77,40 @@ fun SettingsScreen(controller: TransferController) {
         } else {
             controller.setAutoSave(enable)
         }
+    }
+
+    // --- Backup (identity + address book) and relay server ---
+    var backupAction by remember { mutableStateOf<BackupAction?>(null) }
+    var pendingUri by remember { mutableStateOf<Uri?>(null) }
+    var passphrase by remember { mutableStateOf("") }
+    var relayText by remember { mutableStateOf(controller.relayServer) }
+
+    fun askPassphrase(action: BackupAction, uri: Uri) {
+        backupAction = action
+        pendingUri = uri
+        passphrase = ""
+    }
+
+    val exportIdentityLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri -> if (uri != null) askPassphrase(BackupAction.EXPORT_IDENTITY, uri) }
+    val importIdentityLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) askPassphrase(BackupAction.IMPORT_IDENTITY, uri) }
+    val exportAddressesLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.CreateDocument("application/octet-stream")
+    ) { uri -> if (uri != null) askPassphrase(BackupAction.EXPORT_ADDRESSES, uri) }
+    val importAddressesLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocument()
+    ) { uri -> if (uri != null) askPassphrase(BackupAction.IMPORT_ADDRESSES, uri) }
+
+    var showWanDev by remember { mutableStateOf(false) }
+    if (showWanDev) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            TextButton(onClick = { showWanDev = false }) { Text("\u2039 Back") }
+            WanDirectDevScreen(controller.myScalar, controller.myHandle)
+        }
+        return
     }
 
     Column(
@@ -152,22 +188,113 @@ fun SettingsScreen(controller: TransferController) {
 
         HorizontalDivider()
 
-        Text(stringResource(R.string.set_more_apps), style = MaterialTheme.typography.titleMedium)
-        LinkRow("PGPony", stringResource(R.string.set_pgpony_desc)) { openUrl(AppLinks.PGPONY) }
-        LinkRow("AgePony", stringResource(R.string.set_agepony_desc)) { openUrl(AppLinks.AGEPONY) }
+        Text(stringResource(R.string.set_help_header), style = MaterialTheme.typography.titleMedium)
+        LinkRow(stringResource(R.string.set_help_faq_t), stringResource(R.string.set_help_faq_d)) { openUrl(AppLinks.SUPPORT) }
+        LinkRow(stringResource(R.string.set_help_rate_t), stringResource(R.string.set_help_rate_d)) { openUrl(AppLinks.PLAY) }
+        LinkRow(stringResource(R.string.set_help_feedback_t), stringResource(R.string.set_help_feedback_d)) {
+            openUrl("mailto:${AppLinks.FEEDBACK_EMAIL}?subject=" + Uri.encode("RelayPony Android Feedback (${BuildConfig.VERSION_NAME})"))
+        }
+        LinkRow(stringResource(R.string.set_help_privacy_t), stringResource(R.string.set_help_privacy_d)) { openUrl(AppLinks.PRIVACY) }
+        LinkRow(stringResource(R.string.set_help_security_t), stringResource(R.string.set_help_security_d)) { openUrl(AppLinks.SECURITY) }
 
         HorizontalDivider()
 
-        Text(stringResource(R.string.set_open_source), style = MaterialTheme.typography.titleMedium)
-        LinkRow(stringResource(R.string.set_source_title), stringResource(R.string.set_source_desc)) { openUrl(AppLinks.REPO) }
+        Text(stringResource(R.string.set_more_header), style = MaterialTheme.typography.titleMedium)
+        LinkRow(stringResource(R.string.set_more_pgpony), stringResource(R.string.set_more_pgpony_d)) { openUrl(AppLinks.PGPONY) }
+        LinkRow(stringResource(R.string.set_more_agepony), stringResource(R.string.set_more_agepony_d)) { openUrl(AppLinks.AGEPONY) }
+        LinkRow(stringResource(R.string.set_more_quorumpony), stringResource(R.string.set_more_quorumpony_d)) { openUrl(AppLinks.QUORUMPONY) }
+        LinkRow(stringResource(R.string.set_more_carrierpony), stringResource(R.string.set_more_carrierpony_d)) { openUrl(AppLinks.CARRIERPONY) }
+        LinkRow(stringResource(R.string.set_more_burnpony), stringResource(R.string.set_more_burnpony_d)) { openUrl(AppLinks.BURNPONY) }
+        LinkRow(stringResource(R.string.set_more_vaultpony), stringResource(R.string.set_more_vaultpony_d)) { openUrl(AppLinks.VAULTPONY) }
+        LinkRow(stringResource(R.string.set_more_passpony), stringResource(R.string.set_more_passpony_d)) { openUrl(AppLinks.PASSPONY) }
+        LinkRow(stringResource(R.string.set_more_scrubpony), stringResource(R.string.set_more_scrubpony_d)) { openUrl(AppLinks.SCRUBPONY) }
+        LinkRow(stringResource(R.string.set_more_family_t), stringResource(R.string.set_more_family_d)) { openUrl(AppLinks.PONY_FAMILY) }
+        LinkRow(stringResource(R.string.set_more_appsrc_t), stringResource(R.string.set_more_appsrc_d)) { openUrl(AppLinks.REPO) }
+        LinkRow(stringResource(R.string.set_more_core_t), stringResource(R.string.set_more_core_d)) { openUrl(AppLinks.CORE_REPO) }
+
+        HorizontalDivider()
+
+        Text(stringResource(R.string.set_backup_header), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.set_backup_body),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = { exportIdentityLauncher.launch("relaypony-identity.age") },
+                enabled = !controller.identityBusy.value,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.set_backup_export_identity)) }
+            OutlinedButton(
+                onClick = { importIdentityLauncher.launch(arrayOf("*/*")) },
+                enabled = !controller.identityBusy.value,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.set_backup_import_identity)) }
+        }
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+        ) {
+            OutlinedButton(
+                onClick = { exportAddressesLauncher.launch("relaypony-addresses.age") },
+                enabled = !controller.identityBusy.value,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.set_backup_export_addresses)) }
+            OutlinedButton(
+                onClick = { importAddressesLauncher.launch(arrayOf("*/*")) },
+                enabled = !controller.identityBusy.value,
+                modifier = Modifier.weight(1f),
+            ) { Text(stringResource(R.string.set_backup_import_addresses)) }
+        }
+
+        HorizontalDivider()
+
+        Text(stringResource(R.string.set_relay_header), style = MaterialTheme.typography.titleMedium)
+        Text(
+            stringResource(R.string.set_relay_body),
+            style = MaterialTheme.typography.bodySmall,
+        )
+        OutlinedTextField(
+            value = relayText,
+            onValueChange = { relayText = it },
+            label = { Text(stringResource(R.string.set_relay_url_label)) },
+            singleLine = true,
+            modifier = Modifier.fillMaxWidth(),
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            OutlinedButton(onClick = {
+                controller.relayServer = relayText.trim()
+                relayText = controller.relayServer
+                controller.status.value = context.getString(R.string.set_relay_saved)
+            }) { Text(stringResource(R.string.set_relay_save)) }
+            OutlinedButton(onClick = {
+                controller.relayServer = ""
+                relayText = controller.relayServer
+                controller.status.value = context.getString(R.string.set_relay_reset_done)
+            }) { Text(stringResource(R.string.set_relay_reset)) }
+        }
+        LinkRow(stringResource(R.string.set_relay_selfhost_t), stringResource(R.string.set_relay_selfhost_d)) { openUrl(AppLinks.SELF_HOST) }
+        LinkRow(stringResource(R.string.set_relay_repo_t), stringResource(R.string.set_relay_repo_d)) { openUrl(AppLinks.RELAY_REPO) }
+
+        HorizontalDivider()
+
+        Text("Developer", style = MaterialTheme.typography.titleMedium)
+        LinkRow("WAN Direct (dev)", "Serverless path + 1 MB test stream to a paired peer") { showWanDev = true }
 
         HorizontalDivider()
 
         Text(stringResource(R.string.set_about), style = MaterialTheme.typography.titleMedium)
         Text(
-            "RelayPony ${BuildConfig.VERSION_NAME} (build ${BuildConfig.VERSION_CODE})",
+            stringResource(R.string.set_about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE),
             style = MaterialTheme.typography.bodyMedium,
         )
+        Text(stringResource(R.string.set_about_compat), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.set_about_encryption), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(stringResource(R.string.set_about_transport), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        LinkRow(stringResource(R.string.set_about_licenses_t), stringResource(R.string.set_about_licenses_d)) { openUrl(AppLinks.OPEN_SOURCE) }
         Text(
             stringResource(R.string.set_about_desc),
             style = MaterialTheme.typography.bodySmall,
@@ -251,7 +378,63 @@ fun SettingsScreen(controller: TransferController) {
             },
         )
     }
+
+    val action = backupAction
+    if (action != null) {
+        val exporting = action == BackupAction.EXPORT_IDENTITY || action == BackupAction.EXPORT_ADDRESSES
+        val title = when (action) {
+            BackupAction.EXPORT_IDENTITY -> stringResource(R.string.set_backup_export_identity)
+            BackupAction.IMPORT_IDENTITY -> stringResource(R.string.set_backup_import_identity)
+            BackupAction.EXPORT_ADDRESSES -> stringResource(R.string.set_backup_export_addresses)
+            BackupAction.IMPORT_ADDRESSES -> stringResource(R.string.set_backup_import_addresses)
+        }
+        AlertDialog(
+            onDismissRequest = { backupAction = null },
+            title = { Text(title) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(
+                        if (exporting) stringResource(R.string.set_backup_pass_export)
+                        else stringResource(R.string.set_backup_pass_import),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = passphrase,
+                        onValueChange = { passphrase = it },
+                        label = { Text(stringResource(R.string.set_backup_pass_label)) },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = passphrase.isNotEmpty(),
+                    onClick = {
+                        val uri = pendingUri
+                        val pass = passphrase
+                        if (uri != null) {
+                            when (action) {
+                                BackupAction.EXPORT_IDENTITY -> controller.exportIdentity(uri, pass)
+                                BackupAction.IMPORT_IDENTITY -> controller.importIdentity(uri, pass)
+                                BackupAction.EXPORT_ADDRESSES -> controller.exportAddresses(uri, pass)
+                                BackupAction.IMPORT_ADDRESSES -> controller.importAddresses(uri, pass)
+                            }
+                        }
+                        backupAction = null
+                        passphrase = ""
+                    },
+                ) { Text(if (exporting) stringResource(R.string.set_backup_export_action) else stringResource(R.string.set_backup_import_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { backupAction = null; passphrase = "" }) { Text(stringResource(R.string.set_close)) }
+            },
+        )
+    }
 }
+
+private enum class BackupAction { EXPORT_IDENTITY, IMPORT_IDENTITY, EXPORT_ADDRESSES, IMPORT_ADDRESSES }
 
 @Composable
 private fun LinkRow(title: String, subtitle: String, onClick: () -> Unit) {

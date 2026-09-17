@@ -235,6 +235,50 @@ fun SendScreen(controller: TransferController) {
             }
         }
 
+        HorizontalDivider()
+
+        Text(stringResource(R.string.send_wan_header), style = MaterialTheme.typography.titleMedium)
+        val nearbyHandles = controller.peers.map { it.recipientHandle }.toSet()
+        val remoteDevices = controller.pairedDevices().filter { it.recipientHandle !in nearbyHandles }
+        if (remoteDevices.isEmpty()) {
+            Text(
+                stringResource(R.string.send_wan_empty),
+                style = MaterialTheme.typography.bodySmall,
+            )
+        } else {
+            remoteDevices.forEach { device ->
+                val wanStatus = controller.wanSendStatus[device.recipientHandle]
+                val wanBusy = device.recipientHandle in controller.wanSending.value
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            Column {
+                                Text(device.name, style = MaterialTheme.typography.titleSmall)
+                                Text(
+                                    stringResource(R.string.send_paired),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                )
+                            }
+                            Button(onClick = { controller.sendWAN(device) }, enabled = sharing && !wanBusy) {
+                                Text(stringResource(R.string.send_wan_send))
+                            }
+                        }
+                        if (wanStatus != null) {
+                            Text(wanStatus, style = MaterialTheme.typography.bodySmall, modifier = Modifier.padding(top = 6.dp))
+                        }
+                        if (wanBusy) {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth().padding(top = 4.dp))
+                        }
+                    }
+                }
+            }
+        }
+
         if (controller.wifiDirect.isSupported) {
             HorizontalDivider()
             WifiDirectSection(controller, asSender = true)

@@ -75,6 +75,10 @@ class AgeProvider : CryptoProvider {
     fun identityToString(identity: Identity): String =
         identity.asAge().identity.toBech32()
 
+    /** This device's raw 32-byte X25519 scalar, for PonyDirect per-peer key derivation. */
+    fun scalarOf(identity: Identity): ByteArray =
+        identity.asAge().identity.privateKey
+
     private fun Recipient.asAge(): AgeRecipientHandle =
         this as? AgeRecipientHandle
             ?: throw IllegalArgumentException("AgeProvider requires age recipients; got ${this::class.java.name}")

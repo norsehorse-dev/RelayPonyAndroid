@@ -28,6 +28,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -51,6 +52,10 @@ fun ReceiveScreen(controller: TransferController) {
     // Start listening as soon as the user lands on Receive. startReceiving() is a no-op if already
     // listening, so re-entering the tab is safe.
     LaunchedEffect(Unit) { if (controller.wantsReceiving.value) controller.startReceiving() }
+    DisposableEffect(Unit) {
+        controller.startWANReceive()
+        onDispose { controller.stopWANReceive() }
+    }
 
     if (isTv) {
         // TV: a landscape two-pane layout — controls and status on the left, the pairing card on
@@ -65,6 +70,7 @@ fun ReceiveScreen(controller: TransferController) {
                 verticalArrangement = Arrangement.spacedBy(16.dp),
             ) {
                 StatusAndControls(controller)
+                WanReceiveCard(controller)
                 ReceiveNote(controller)
                 if (controller.wifiDirect.isSupported) {
                     HorizontalDivider()
@@ -90,6 +96,7 @@ fun ReceiveScreen(controller: TransferController) {
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
             StatusAndControls(controller)
+            WanReceiveCard(controller)
             PairingCard(controller, qrBitmap, qrSize = 240.dp)
             ReceiveNote(controller)
             if (controller.wifiDirect.isSupported) {
@@ -218,6 +225,27 @@ private fun PairingCard(
                 modifier = Modifier.size(qrSize),
             )
             Text(stringResource(R.string.ob_this_device, controller.deviceName), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+}
+
+@Composable
+private fun WanReceiveCard(controller: TransferController) {
+    val active = controller.wanReceiveActive.value
+    val status = controller.wanReceiveStatus.value
+    val onText = stringResource(R.string.rec_wan_on)
+    val offText = stringResource(R.string.rec_wan_off)
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(2.dp),
+        ) {
+            Text(stringResource(R.string.rec_wan_header), style = MaterialTheme.typography.titleSmall)
+            Text(
+                if (active) status.ifEmpty { onText } else offText,
+                style = MaterialTheme.typography.bodySmall,
+                color = if (active) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
         }
     }
 }

@@ -40,6 +40,10 @@ import com.relaypony.session.pairing.Sas
 import java.util.Locale
 import com.relaypony.session.pairing.QrPayload
 import com.relaypony.transport.Beacon
+import com.relaypony.session.wan.RelayConfig
+import com.relaypony.session.wan.WanTransfer
+import com.relaypony.session.wan.WanStatus
+import com.relaypony.session.wan.WanStatusKind
 import com.relaypony.transport.BeaconDiscovery
 import com.relaypony.transport.LocalInterfaces
 import com.relaypony.transport.NsdDiscovery
@@ -67,8 +71,24 @@ class TransferController(context: Context) {
     private val inboxStore = PrefsInboxStore(appContext)
     private val settings = appContext.getSharedPreferences("relaypony_settings", Context.MODE_PRIVATE)
 
+    /** WAN-direct relay base URL (self-host override), persisted across launches. */
+    var relayServer: String
+        get() = settings.getString("relay_server", null)?.takeIf { it.isNotEmpty() } ?: "https://relaypony.app"
+        set(value) {
+            val v = value.trim()
+            settings.edit().putString("relay_server", v).apply()
+            RelayConfig.baseUrl = if (v.isEmpty()) "https://relaypony.app" else v
+        }
+
+    init {
+        val saved = settings.getString("relay_server", null)
+        if (!saved.isNullOrEmpty()) RelayConfig.baseUrl = saved
+    }
+
     /** This device's recipient handle (age1 string), advertised over mDNS and shown in its QR. */
     val myHandle: String = String(provider.recipientToQr(myRecipient), Charsets.UTF_8)
+    /** This device's raw age X25519 scalar, for the WAN-direct dev spike. */
+    val myScalar: ByteArray = provider.scalarOf(identity)
     val deviceName: String = Build.MODEL ?: "Android"
 
     private val discovery = NsdDiscovery(appContext)
@@ -138,6 +158,24 @@ class TransferController(context: Context) {
 
     private fun str(id: Int, vararg args: Any?): String = localizedContext().getString(id, *args)
 
+    /** Map a session-layer [WanStatus] to a localized string in the current in-app language. */
+    private fun wanStatusText(st: WanStatus): String = when (st.kind) {
+        WanStatusKind.READY -> str(R.string.wan_ready)
+        WanStatusKind.IN_PROGRESS -> str(R.string.wan_in_progress)
+        WanStatusKind.ADD_FILES -> str(R.string.wan_add_files)
+        WanStatusKind.PREPARING -> str(R.string.wan_preparing)
+        WanStatusKind.PREPARE_FAILED -> str(R.string.wan_prepare_failed, st.arg ?: str(R.string.wan_unknown_error))
+        WanStatusKind.CONNECTING -> str(R.string.wan_connecting)
+        WanStatusKind.SENDING -> str(R.string.wan_sending)
+        WanStatusKind.SENDING_RELAY -> str(R.string.wan_sending_relay)
+        WanStatusKind.SENT -> str(R.string.wan_sent)
+        WanStatusKind.SEND_FAILED -> str(R.string.wan_send_failed)
+        WanStatusKind.RECEIVING -> str(R.string.wan_receiving)
+        WanStatusKind.RECEIVING_RELAY -> str(R.string.wan_receiving_relay)
+        WanStatusKind.RECEIVED -> str(R.string.wan_received, st.count, st.arg ?: "")
+        WanStatusKind.RECEIVE_FAILED -> str(R.string.wan_receive_failed, st.arg ?: str(R.string.wan_unknown_error))
+    }
+
     /** The idle status string in the persisted in-app language, read directly from settings so it does
      *  not depend on [languageCode] (declared later) and does not leak the process default locale. */
     private fun idleStatusText(): String {
@@ -183,6 +221,18 @@ class TransferController(context: Context) {
     /** True while an identity export/import is running (disables the buttons in Settings). */
     val identityBusy = mutableStateOf(false)
 
+    /** Per-peer WAN send status, keyed by the peer's age handle. */
+    val wanSendStatus = mutableStateMapOf<String, String>()
+    /** Peers a WAN send is currently in flight to. */
+    val wanSending = mutableStateOf<Set<String>>(emptySet())
+    /** True while WAN receive is armed (the Receive tab is open). */
+    val wanReceiveActive = mutableStateOf(false)
+    /** Short status line for the WAN receive state. */
+    val wanReceiveStatus = mutableStateOf("")
+
+    /** WAN-direct transfer engine (paired devices not on the same LAN). Assigned in init. */
+    val wan: WanTransfer
+
     private var serverSocket: ServerSocket? = null
 
     /** Whether the LAN listener is currently accepting connections (drives the Receive UI). */
@@ -199,6 +249,20 @@ class TransferController(context: Context) {
         refreshInbox()
         refreshShareShortcuts()
         wifiDirect.onConnected = { isGroupOwner, goAddress -> onWifiConnected(isGroupOwner, goAddress) }
+        wan = WanTransfer(
+            provider = provider,
+            identity = identity,
+            myScalar = myScalar,
+            myHandle = myHandle,
+            deviceName = deviceName,
+            saveDir = { File(appContext.filesDir, "inbox") },
+            isPinned = { trustStore.isPinned(it) },
+        ).apply {
+            onSendStatus = { peer, st -> wanSendStatus[peer] = wanStatusText(st) }
+            onSendingChanged = { set -> wanSending.value = set }
+            onReceiveStatus = { st -> wanReceiveStatus.value = wanStatusText(st) }
+            onReceived = { batch -> recordWanReceived(batch) }
+        }
     }
 
     /** A4: a handle a Direct Share target asked us to pre-select on the Send screen, or null.
@@ -318,6 +382,49 @@ class TransferController(context: Context) {
                         trustRevision.intValue++
                         refreshShareShortcuts()
                         setStatus("Imported ${imported.devices.size} device(s). Restart RelayPony to switch to the imported identity.")
+                    },
+                    { setStatus("Import failed: ${it.message ?: "unknown error"}") },
+                )
+            }
+        }
+    }
+
+    /** Export ONLY the paired-devices address book to [uri] as a passphrase-protected age file.
+     *  Decoupled from identity backup: no keypair travels, so it merges anywhere. */
+    fun exportAddresses(uri: Uri, passphrase: String) {
+        identityBusy.value = true
+        setStatus("Exporting address book\u2026")
+        thread {
+            val result = runCatching {
+                appContext.contentResolver.openOutputStream(uri)?.use { out ->
+                    IdentityBackup.exportAddresses(passphrase, trustStore.all(), out)
+                } ?: error("couldn't open the destination file")
+            }
+            main.post {
+                identityBusy.value = false
+                setStatus(result.fold({ "Address book exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
+            }
+        }
+    }
+
+    /** Import an address-book backup from [uri] and MERGE its devices into the trust store. Does not
+     *  touch this device's identity. Also accepts a full identity backup (uses only its devices). */
+    fun importAddresses(uri: Uri, passphrase: String) {
+        identityBusy.value = true
+        setStatus("Importing address book\u2026")
+        thread {
+            val result = runCatching {
+                appContext.contentResolver.openInputStream(uri)?.use { IdentityBackup.importAddresses(passphrase, it) }
+                    ?: error("couldn't open the backup file")
+            }
+            main.post {
+                identityBusy.value = false
+                result.fold(
+                    { devices ->
+                        devices.forEach { trustStore.pin(it.recipientHandle, it.name, it.pinnedAtEpochMs) }
+                        trustRevision.intValue++
+                        refreshShareShortcuts()
+                        setStatus("Imported ${devices.size} address(es).")
                     },
                     { setStatus("Import failed: ${it.message ?: "unknown error"}") },
                 )
@@ -917,6 +1024,7 @@ class TransferController(context: Context) {
     }
 
     fun stop() {
+        runCatching { wan.stop() }
         runCatching { discovery.stop() }
         runCatching { beacon.close() }
         releaseBeaconLock()
@@ -924,6 +1032,46 @@ class TransferController(context: Context) {
         serverSocket = null
         listenPort.value = 0
         reachableAddresses.clear()
+    }
+
+    // --- WAN transfer (paired, not on the same LAN) ---
+
+    /** Begin accepting incoming WAN transfers while the Receive tab is open. */
+    fun startWANReceive() { wan.startReceiving(); wanReceiveActive.value = true }
+
+    /** Stop accepting new WAN transfers. In-flight receives finish. */
+    fun stopWANReceive() { wan.stopReceiving(); wanReceiveActive.value = false }
+
+    /** Send the staged files to a paired device over the internet. */
+    fun sendWAN(device: com.relaypony.session.pairing.PinnedDevice) {
+        if (pendingShare.isEmpty()) { setStatus(str(R.string.st_pick_files_first)); return }
+        wan.sendWAN(pendingShare.toList(), device.recipientHandle, deviceName, myHandle)
+    }
+
+    /** File a completed WAN receive into the inbox, mirroring [recordReceived]. */
+    private fun recordWanReceived(batch: WanTransfer.ReceivedBatch) {
+        val now = System.currentTimeMillis()
+        val records = batch.files.mapIndexed { i, f ->
+            ReceivedFile(
+                id = "$now-$i-${f.name}",
+                name = f.name,
+                size = f.size,
+                mime = f.mime,
+                fromDevice = batch.senderName,
+                receivedAtEpochMs = now,
+                localPath = f.path,
+            )
+        }
+        records.forEach { inboxStore.add(it) }
+        if (autoSave.value) {
+            records.forEach { rec ->
+                if (DownloadsSaver.save(appContext, File(rec.localPath), rec.name, rec.mime)) {
+                    inboxStore.markSavedToDownloads(rec.id)
+                }
+            }
+        }
+        refreshInbox()
+        setStatus(str(R.string.st_received, records.size, batch.senderName), StatusKind.RECEIVED)
     }
 
     private data class Written(val name: String, val size: Long, val mime: String, val path: String)
