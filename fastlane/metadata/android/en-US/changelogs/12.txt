@@ -1,0 +1,9 @@
+Send files to your paired devices over the internet, not just on the same network.
+
+• Send over the internet: RelayPony connects the two devices directly when it can, and falls back to passing the encrypted transfer through the relay when a direct link can't be made (common on mobile data)
+• Relay server setting: use the default relay or point RelayPony at one you run yourself
+• Identity backup and address book export, protected by a passphrase
+• New help, licenses and about sections in Settings
+• Now available in Spanish, German, French, Japanese, Hindi and Brazilian Portuguese
+
+3.0.1 fixes the source build of 3.0, which was pinned to an older copy of the PonyDirect transport library.

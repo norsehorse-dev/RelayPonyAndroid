@@ -35,8 +35,8 @@ android {
         // uploading, and bump further if not; Play will reject an upload that doesn't increase.
         // versionName follows GitHub main's own bump to 2.0 for the beacon/hotspot/send-by-address
         // work merged in here, plus TV support and the other fixes on top.
-        versionCode = 11
-        versionName = "3.0"
+        versionCode = 12
+        versionName = "3.0.1"
     }
 
     signingConfigs {
