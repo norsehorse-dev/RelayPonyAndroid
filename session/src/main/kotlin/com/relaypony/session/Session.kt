@@ -61,6 +61,8 @@ object Session {
         peerMaxWire: Int = 1,
         reverseIn: InputStream? = null,
         localCaps: Int = WireProtocol.LOCAL_CAPS,
+        /** 4.0: builds the HELLO sender tag tail (section 9.1); see [HelloAuth.signer]. */
+        helloAuth: ((ByteArray) -> ByteArray)? = null,
         onNegotiated: ((Int, Int) -> Unit)? = null,
         onProgress: ((Long, Long) -> Unit)? = null,
     ) {
@@ -68,12 +70,17 @@ object Session {
         // channel for its answering HELLO; otherwise the exact v1 monologue, byte-identical.
         val version = WireNegotiation.version(WireProtocol.MAX_WIRE_VERSION, peerMaxWire)
         if (version >= 2 && reverseIn != null) {
-            WireProtocol.writeHelloV2(out, provider.schemeId, deviceName, senderRecipientHandle, localCaps)
+            WireProtocol.writeHelloV2(out, provider.schemeId, deviceName, senderRecipientHandle, localCaps, helloAuth)
             out.flush()                                             // buffered: reach the receiver before we read
-            val peerHello = WireProtocol.readHello(reverseIn)       // blocks until the receiver answers
+            // The answer is the receiver's HELLO, or (4.0) a REFUSE frame (section 9.3).
+            val answer = WireProtocol.readFrame(reverseIn)
+                ?: throw WireProtocol.WireException("expected HELLO, got EOF")
+            if (answer.type == WireProtocol.REFUSE) throw RefusedException(WireProtocol.refuseReason(answer.payload))
+            if (answer.type != WireProtocol.HELLO) throw WireProtocol.WireException("expected HELLO frame, got type ${answer.type}")
+            val peerHello = WireProtocol.parseHello(answer.payload)
             onNegotiated?.invoke(2, WireNegotiation.effectiveCaps(localCaps, peerHello.caps))
         } else {
-            WireProtocol.writeHello(out, provider.schemeId, deviceName, senderRecipientHandle)
+            WireProtocol.writeHello(out, provider.schemeId, deviceName, senderRecipientHandle, helloAuth)
             onNegotiated?.invoke(1, 0)
         }
 
@@ -125,12 +132,26 @@ object Session {
         // Not last: callers pass the sink as a trailing lambda, so the final parameter stays
         // the function-typed onProgress, exactly as in 3.x.
         limits: TransferLimits = TransferLimits.DEFAULT,
+        /**
+         * 4.0: decides whether to take this sender (section 9.2). Returns null to accept, or a
+         * refusal reason: a v2 sender then gets a REFUSE frame, and this throws [RefusedException].
+         */
+        gate: ((WireProtocol.Hello) -> String?)? = null,
         onNegotiated: ((Int, Int) -> Unit)? = null,
         onProgress: ((Long, Long) -> Unit)? = null,
     ): ReceiveResult {
         val hello = WireProtocol.readHello(input)
         if (hello.schemeId != provider.schemeId) {
             throw UnsupportedSchemeException(provider.schemeId, hello.schemeId)
+        }
+        gate?.invoke(hello)?.let { reason ->
+            if (hello.version >= 2 && reverseOut != null) {
+                runCatching {
+                    WireProtocol.writeFrame(reverseOut, WireProtocol.REFUSE, WireProtocol.refusePayload(reason))
+                    reverseOut.flush()
+                }
+            }
+            throw RefusedException(reason, hello.deviceName, hello.recipientHandle)
         }
 
         // B2 handshake. Answer a v2 sender with our HELLO v2 so it learns our capabilities; a v1

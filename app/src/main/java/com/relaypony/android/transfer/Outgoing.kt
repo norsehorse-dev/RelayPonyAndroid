@@ -29,6 +29,8 @@ data class SendLeg(
     /** 0..1, or null while it can't be known yet. */
     val progress: Float? = null,
     val error: String? = null,
+    /** The device answered but doesn't have this one paired (PROTOCOL_v3 section 9.3). */
+    val refused: Boolean = false,
 ) {
     val active: Boolean get() = state == LegState.CONNECTING || state == LegState.SENDING
 }
@@ -60,7 +62,36 @@ object ClipText {
         val t = text.trim()
         if (t.isEmpty() || t.any { it.isWhitespace() }) return false
         val lower = t.lowercase(Locale.US)
-        return (lower.startsWith("https://") && t.length > 8) || (lower.startsWith("http://") && t.length > 7)
+        if (!lower.startsWith("https://") && !lower.startsWith("http://")) return false
+        return runCatching { java.net.URI(t).host }.getOrNull()?.isNotEmpty() == true
+    }
+
+    /** Received .txt files at or under this size are checked for a text drop. Same as iOS. */
+    const val MAX_SNIFF_BYTES = 16 * 1024
+
+    /** What a received small .txt turned out to be. */
+    sealed class Sniff {
+        data class Text(val text: String) : Sniff()
+        data class Link(val url: String) : Sniff()
+    }
+
+    fun isCandidate(name: String, size: Long): Boolean =
+        name.lowercase(Locale.US).endsWith(".txt") && size in 1..MAX_SNIFF_BYTES.toLong()
+
+    /** UTF-8 text gets Copy; a single http(s) link gets Open link too. Anything else is null. */
+    fun sniff(bytes: ByteArray): Sniff? {
+        if (bytes.isEmpty() || bytes.size > MAX_SNIFF_BYTES) return null
+        val text = try {
+            Charsets.UTF_8.newDecoder()
+                .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+        } catch (e: java.nio.charset.CharacterCodingException) {
+            return null
+        }
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return null
+        return if (isSingleUrl(trimmed)) Sniff.Link(trimmed) else Sniff.Text(text)
     }
 
     fun mime(text: String): String = if (isSingleUrl(text)) "text/uri-list" else "text/plain"

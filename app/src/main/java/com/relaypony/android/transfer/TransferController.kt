@@ -28,6 +28,9 @@ import com.relaypony.android.MainActivity
 import com.relaypony.android.R
 import com.relaypony.crypto.AgeProvider
 import com.relaypony.session.FanOut
+import com.relaypony.session.HelloAuth
+import com.relaypony.session.RefusedException
+import com.relaypony.transport.WireProtocol
 import com.relaypony.session.FileNames
 import com.relaypony.session.TransferLimits
 import com.relaypony.session.IdentityBackup
@@ -285,6 +288,8 @@ class TransferController(context: Context) {
     init {
         refreshInbox()
         refreshShareShortcuts()
+        // Folder zips left behind by a process that died mid-send.
+        runCatching { folderZipDir().deleteRecursively() }
         wifiDirect.onConnected = { isGroupOwner, goAddress -> onWifiConnected(isGroupOwner, goAddress) }
         wan = WanTransfer(
             provider = provider,
@@ -382,7 +387,8 @@ class TransferController(context: Context) {
         relayHasMailboxes = { relayHasMailboxes },
         myHandle = myHandle,
         setListening = { on -> setPairSheetOpen(on) },
-        onPinned = { _, name ->
+        onPinned = { handle, name ->
+            requests.removeAll { it.handle == handle }
             trustRevision.intValue++
             refreshShareShortcuts()
             setStatus(str(R.string.st_paired_with, name))
@@ -410,6 +416,78 @@ class TransferController(context: Context) {
         }
         wan.onInboxMessage = { plain -> pairing.onSealedPlain(plain) }
         checkRelayFeatures()
+    }
+
+    // ---- 4.0: paired-only receive (PROTOCOL_v3.md section 9, plan section 9.2) ----
+
+    /** Advanced: take LAN transfers from devices that aren't paired. Off unless the user turns it on. */
+    val acceptUnpaired = mutableStateOf(settings.getBoolean(KEY_ACCEPT_UNPAIRED, false))
+
+    fun setAcceptUnpaired(on: Boolean) {
+        acceptUnpaired.value = on
+        settings.edit().putBoolean(KEY_ACCEPT_UNPAIRED, on).apply()
+    }
+
+    /** Paired devices seen sending a tagged HELLO. From then on an untagged one from them is a downgrade. */
+    private val taggedPeers = appContext.getSharedPreferences("relaypony_tagged_peers", Context.MODE_PRIVATE)
+
+    /** Tags already accepted, so a captured HELLO can't be used twice. Hex tag to time seen. */
+    private val seenTags = HashMap<String, Long>()
+
+    private fun firstUseOf(tag: ByteArray, nowMs: Long): Boolean = synchronized(seenTags) {
+        seenTags.entries.removeAll { nowMs - it.value > TAG_MEMORY_MS }
+        val key = tag.joinToString("") { "%02x".format(it) }
+        if (seenTags.containsKey(key)) false else { seenTags[key] = nowMs; true }
+    }
+
+    /**
+     * Whether to take a LAN transfer from the sender of [hello] (section 9.2). Null accepts; a
+     * reason refuses it, and the sender is listed under Requests. Runs on the accept thread.
+     */
+    private fun receiveGate(hello: WireProtocol.Hello): String? {
+        val from = hello.recipientHandle
+        val pinned = trustStore.isPinned(from)
+        val auth = hello.auth
+        val now = System.currentTimeMillis()
+        if (pinned && auth != null) {
+            if (HelloAuth.verify(myScalar, myHandle, from, auth, now) && firstUseOf(auth.tag, now)) {
+                if (!taggedPeers.getBoolean(from, false)) taggedPeers.edit().putBoolean(from, true).apply()
+                return null
+            }
+            return refuse(hello)
+        }
+        // A paired 3.x device sends no tag. Once a device has tagged, an untagged HELLO claiming
+        // to be it is refused.
+        if (pinned && !taggedPeers.getBoolean(from, false)) return null
+        if (!pinned && acceptUnpaired.value) return null
+        return refuse(hello)
+    }
+
+    private fun refuse(hello: WireProtocol.Hello): String {
+        val name = hello.deviceName.take(64)
+        val handle = hello.recipientHandle
+        main.post { noteRequest(handle, name) }
+        return "unpaired"
+    }
+
+    /** The label for received files: the name this device paired with, never the sender's own. */
+    private fun senderLabel(handle: String, claimedName: String): String =
+        trustStore.get(handle)?.name ?: str(R.string.rec_unpaired_label, claimedName)
+
+    /** A device that tried to send here and was refused (plan section 9.3). Name and handle are its own claim. */
+    data class SendRequest(val handle: String, val name: String, val atMs: Long)
+
+    /** Recent refused senders, newest first, for the Requests card in Received. */
+    val requests = mutableStateListOf<SendRequest>()
+
+    private fun noteRequest(handle: String, name: String) {
+        requests.removeAll { it.handle == handle }
+        requests.add(0, SendRequest(handle, name, System.currentTimeMillis()))
+        while (requests.size > MAX_REQUESTS) requests.removeAt(requests.lastIndex)
+    }
+
+    fun dismissRequest(request: SendRequest) {
+        requests.remove(request)
     }
 
     /**
@@ -739,6 +817,7 @@ class TransferController(context: Context) {
     fun setPendingShare(files: List<OutgoingFile>) {
         pendingShare.clear()
         pendingShare.addAll(files)
+        sweepFolderZips()
         setStatus(str(R.string.st_ready_send, files.size))
         // Shared in from another app, or picked on Home: straight to choosing who gets it.
         if (files.isNotEmpty()) sendToOpen.value = true
@@ -752,6 +831,7 @@ class TransferController(context: Context) {
     /** Drop the currently staged outgoing files. */
     fun clearPendingShare() {
         pendingShare.clear()
+        sweepFolderZips()
         setStatus(str(R.string.st_cleared))
     }
 
@@ -851,6 +931,7 @@ class TransferController(context: Context) {
                             }
                         },
                         limits = receiveLimits(),
+                        gate = { hello -> receiveGate(hello) },
                     ) { entry ->
                         val dir = File(appContext.filesDir, "inbox").apply { mkdirs() }
                         val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
@@ -859,12 +940,17 @@ class TransferController(context: Context) {
                         written.add(Written(outFile.name, entry.size, entry.mime, outFile.absolutePath))
                         outFile.outputStream()
                     } ?: continue
-                    recordReceived(written, result.senderName)
+                    val label = senderLabel(result.senderHandle, result.senderName)
+                    recordReceived(written, label)
                     main.post {
                         receiveInProgress.value = false
                         receiveProgress.value = 0f
-                        setStatus(str(R.string.st_received, written.size, result.senderName), StatusKind.RECEIVED)
+                        setStatus(str(R.string.st_received, written.size, label), StatusKind.RECEIVED)
                     }
+                } catch (e: RefusedException) {
+                    // Refused at HELLO (section 9.2): nothing was written, and the sender is listed
+                    // under Requests by the gate. Not a failed transfer.
+                    continue
                 } catch (t: Throwable) {
                     // Drop any half-written files from the aborted transfer so they never reach the inbox.
                     written.forEach { runCatching { File(it.path).delete() } }
@@ -1041,6 +1127,7 @@ class TransferController(context: Context) {
                         SocketTransfer.sendTo(
                             peer.host, peer.port, provider, listOf(recipient), deviceName, myHandle, files,
                             peerMaxWire = peer.maxWire,
+                            helloAuth = HelloAuth.signer(myScalar, myHandle, peer.recipientHandle),
                         ) { sent, total ->
                             main.post { sendProgress[key] = if (total > 0) sent.toFloat() / total else 1f }
                         }
@@ -1436,7 +1523,7 @@ class TransferController(context: Context) {
         if (leg.active || batchFiles.isEmpty()) return
         val nearby = peers.firstOrNull { it.recipientHandle == handle }
         updateLeg(handle) {
-            it.copy(route = if (nearby != null) SendRoute.NEARBY else SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null)
+            it.copy(route = if (nearby != null) SendRoute.NEARBY else SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null, refused = false)
         }
         startLeg(handle, nearby, batchFiles)
     }
@@ -1456,6 +1543,7 @@ class TransferController(context: Context) {
                         SocketTransfer.sendTo(
                             peer.host, peer.port, provider, listOf(recipient), deviceName, myHandle, files,
                             peerMaxWire = peer.maxWire,
+                            helloAuth = HelloAuth.signer(myScalar, myHandle, h),
                             onProgress = { sent, total ->
                                 val now = System.currentTimeMillis()
                                 if (now - lastPost >= 150 || sent >= total) {
@@ -1467,6 +1555,8 @@ class TransferController(context: Context) {
                             onSocket = { lanSockets[h] = it },
                         )
                         break
+                    } catch (e: RefusedException) {
+                        throw e
                     } catch (e: java.io.IOException) {
                         if (h in lanCancelled) throw e
                         attempt++
@@ -1480,6 +1570,10 @@ class TransferController(context: Context) {
                 when {
                     h in lanCancelled -> updateLeg(h) { it.copy(state = LegState.CANCELLED) }
                     result.isSuccess -> updateLeg(h) { it.copy(state = LegState.SENT, progress = 1f) }
+                    // It's there but doesn't have this device paired: no point trying the internet.
+                    result.exceptionOrNull() is RefusedException -> updateLeg(h) {
+                        it.copy(state = LegState.FAILED, refused = true, error = str(R.string.xfer_refused, it.name))
+                    }
                     // Discovery can be stale (the device left the network): try the internet.
                     else -> startLeg(h, null, files)
                 }
@@ -1532,6 +1626,7 @@ class TransferController(context: Context) {
         batchFiles = emptyList()
         transferVisible.value = false
         pendingShare.clear()
+        sweepFolderZips()
     }
 
     /** "Send more": back to Home, with the same devices ticked for whatever is picked next. */
@@ -1556,7 +1651,7 @@ class TransferController(context: Context) {
                 name = f.name,
                 size = f.size,
                 mime = f.mime,
-                fromDevice = batch.senderName,
+                fromDevice = trustStore.get(batch.peerHandle)?.name ?: batch.senderName,
                 receivedAtEpochMs = now,
                 localPath = f.path,
             )
@@ -1570,10 +1665,126 @@ class TransferController(context: Context) {
             }
         }
         refreshInbox()
-        setStatus(str(R.string.st_received, records.size, batch.senderName), StatusKind.RECEIVED)
+        setStatus(str(R.string.st_received, records.size, records.firstOrNull()?.fromDevice ?: batch.senderName), StatusKind.RECEIVED)
     }
 
     private data class Written(val name: String, val size: Long, val mime: String, val path: String)
+
+    // ---- 4.0 content: folders (PROTOCOL_v3 section 12) ----
+
+    /** A folder being zipped before the Send-to sheet opens. */
+    data class FolderPrep(val name: String, val done: Long, val total: Long)
+
+    val folderPrep = mutableStateOf<FolderPrep?>(null)
+
+    /** The received file being extracted, by id. */
+    val extractingId = mutableStateOf<String?>(null)
+
+    @Volatile private var folderCancelled = false
+    private val folderZips = ConcurrentHashMap<OutgoingFile, File>()
+
+    private fun folderZipDir(): File = File(appContext.cacheDir, "folders")
+
+    /** Zip a folder from the folder picker in the background, then stage it like any file. */
+    fun stageFolder(treeUri: Uri) {
+        if (folderPrep.value != null) return
+        folderCancelled = false
+        folderPrep.value = FolderPrep("", 0, 0)
+        thread(name = "relaypony-folder") {
+            var zip: File? = null
+            try {
+                val folder = PickedFolder.walk(appContext, treeUri, WireProtocol.MAX_MANIFEST_ENTRIES)
+                if (folder.fileCount == 0) throw FolderProblem(R.string.folder_empty)
+                val total = folder.totalBytes
+                if (total > TransferLimits.MAX_TRANSFER_BYTES) throw FolderProblem(R.string.folder_too_big)
+                if (folder.items.any { it.size > TransferLimits.MAX_FILE_BYTES }) throw FolderProblem(R.string.folder_too_big)
+                val dir = folderZipDir().apply { mkdirs() }
+                if (total + TransferLimits.FREE_SPACE_MARGIN_BYTES > dir.usableSpace) throw FolderProblem(R.string.folder_no_space)
+                main.post { folderPrep.value = FolderPrep(folder.name, 0, total) }
+                val name = com.relaypony.session.FolderZip.archiveName(folder.name)
+                val zipFile = File(dir, "${System.nanoTime()}-$name")
+                zip = zipFile
+                var done = 0L
+                var lastPost = 0L
+                zipFile.outputStream().buffered(256 * 1024).use { out ->
+                    com.relaypony.session.FolderZip.write(out, folder.name, folder.items, cancelled = { folderCancelled }) { n ->
+                        done += n
+                        if (done - lastPost >= (1L shl 20)) {
+                            lastPost = done
+                            val d = done
+                            main.post { folderPrep.value = folderPrep.value?.copy(done = d) }
+                        }
+                    }
+                }
+                val outgoing = OutgoingFile(name, "application/zip", zipFile.length()) { zipFile.inputStream() }
+                folderZips[outgoing] = zipFile
+                main.post {
+                    folderPrep.value = null
+                    if (folderCancelled) sweepFolderZips() else setPendingShare(listOf(outgoing))
+                }
+            } catch (e: com.relaypony.session.FolderZip.CancelledException) {
+                zip?.delete()
+                main.post { folderPrep.value = null }
+            } catch (e: FolderProblem) {
+                zip?.delete()
+                main.post { folderPrep.value = null; showNotice(str(e.res, WireProtocol.MAX_MANIFEST_ENTRIES)) }
+            } catch (e: PickedFolder.TooManyItemsException) {
+                main.post { folderPrep.value = null; showNotice(str(R.string.folder_too_many, WireProtocol.MAX_MANIFEST_ENTRIES)) }
+            } catch (t: Throwable) {
+                zip?.delete()
+                main.post { folderPrep.value = null; showNotice(str(R.string.folder_read_failed)) }
+            }
+        }
+    }
+
+    fun cancelFolder() { folderCancelled = true }
+
+    private class FolderProblem(val res: Int) : Exception()
+
+    /** Delete folder zips nothing staged or sending refers to any more. */
+    private fun sweepFolderZips() {
+        val inUse = (pendingShare.toList() + batchFiles).toSet()
+        folderZips.keys.filter { it !in inUse }.forEach { key -> folderZips.remove(key)?.delete() }
+    }
+
+    /** Extract a received .zip into Download/RelayPony (section 12.4). */
+    fun extractFolder(file: ReceivedFile) {
+        if (extractingId.value != null) return
+        extractingId.value = file.id
+        thread(name = "relaypony-extract") {
+            val result = runCatching { FolderExtractor.extract(appContext, File(file.localPath), file.name) }
+            main.post {
+                extractingId.value = null
+                result.fold(
+                    { r ->
+                        showNotice(
+                            if (r.skipped > 0) str(R.string.ext_done_skipped, r.files, r.folder, r.skipped)
+                            else str(R.string.ext_done, r.files, r.folder)
+                        )
+                    },
+                    { e -> showNotice(extractProblem(file.name, e)) },
+                )
+            }
+        }
+    }
+
+    private fun extractProblem(name: String, e: Throwable): String {
+        val why = when (e) {
+            is FolderExtractor.EmptyArchiveException -> return str(R.string.ext_empty, name)
+            is com.relaypony.session.UnsafeArchiveException -> when (e.reason) {
+                com.relaypony.session.ZipRefusal.UNSAFE_PATH -> R.string.ext_why_unsafe
+                com.relaypony.session.ZipRefusal.ENCRYPTED -> R.string.ext_why_encrypted
+                com.relaypony.session.ZipRefusal.UNSUPPORTED_METHOD -> R.string.ext_why_method
+                com.relaypony.session.ZipRefusal.TOO_LARGE,
+                com.relaypony.session.ZipRefusal.TOO_MANY_ENTRIES,
+                com.relaypony.session.ZipRefusal.TOO_DEEP -> R.string.ext_why_large
+                com.relaypony.session.ZipRefusal.NO_SPACE -> R.string.ext_why_space
+                else -> R.string.ext_why_damaged
+            }
+            else -> R.string.ext_why_write
+        }
+        return str(R.string.ext_failed, name, str(why))
+    }
 
     companion object {
         /** Dynamic-shortcut id prefix; the suffix is the peer's recipient handle (A4). */
@@ -1584,6 +1795,9 @@ class TransferController(context: Context) {
         private const val KEY_ONBOARDED = "onboarded"
         private const val KEY_LANG = "lang"
         private const val KEY_THEME = "theme"
+        private const val KEY_ACCEPT_UNPAIRED = "accept_unpaired"
+        private const val TAG_MEMORY_MS = 20 * 60 * 1000L
+        private const val MAX_REQUESTS = 10
         private const val SEND_MAX_ATTEMPTS = 3
         private const val SEND_RETRY_BASE_MS = 800L
         private const val PORT_IDENT = 8987

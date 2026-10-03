@@ -78,6 +78,10 @@ fun HomeScreen(controller: TransferController) {
     val pickMedia = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia()) { uris ->
         if (uris.isNotEmpty()) controller.setPendingShareFromUris(uris)
     }
+    val noFolderPicker = stringResource(R.string.folder_no_picker)
+    val pickFolder = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
+        if (uri != null) controller.stageFolder(uri)
+    }
 
     if (isTv) {
         TvHome(controller)
@@ -94,11 +98,17 @@ fun HomeScreen(controller: TransferController) {
         ReadyStatus(controller)
         ActiveSendCard(controller)
         StagedCard(controller)
+        FolderPrepCard(controller)
 
         if (canPickFiles) {
             BigButton(FileIcon, stringResource(R.string.home_files)) { pickFiles.launch(arrayOf("*/*")) }
             BigButton(PhotosIcon, stringResource(R.string.home_photos)) {
                 pickMedia.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageAndVideo))
+            }
+            BigButton(FolderIcon, stringResource(R.string.home_folder)) {
+                if (controller.folderPrep.value == null) {
+                    runCatching { pickFolder.launch(null) }.onFailure { controller.showNotice(noFolderPicker) }
+                }
             }
         }
         BigButton(TextIcon, stringResource(R.string.home_text)) { showText = true }
@@ -269,6 +279,36 @@ private fun ActiveSendCard(controller: TransferController) {
     }
 }
 
+/** A folder being zipped before it can be sent (PROTOCOL_v3 section 12.1). */
+@Composable
+private fun FolderPrepCard(controller: TransferController) {
+    val prep = controller.folderPrep.value ?: return
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                if (prep.name.isEmpty()) stringResource(R.string.home_preparing_plain)
+                else stringResource(R.string.home_preparing, prep.name),
+                style = MaterialTheme.typography.titleSmall,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (prep.total > 0) {
+                LinearProgressIndicator(
+                    progress = { (prep.done.toFloat() / prep.total).coerceIn(0f, 1f) },
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                Text(
+                    "${formatSize(prep.done)} / ${formatSize(prep.total)}",
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+            }
+            TextButton(onClick = { controller.cancelFolder() }) { Text(stringResource(R.string.pair_cancel)) }
+        }
+    }
+}
+
 /** Content picked (or shared in) but not sent yet, for when the Send-to sheet was dismissed. */
 @Composable
 private fun StagedCard(controller: TransferController) {
@@ -369,6 +409,10 @@ private val PhotosIcon = icon(
     "PhotoLibrary",
     "M22,16V4c0,-1.1 -0.9,-2 -2,-2H8c-1.1,0 -2,0.9 -2,2v12c0,1.1 0.9,2 2,2h12c1.1,0 2,-0.9 2,-2z " +
         "M11,12l2.03,2.71L16,11l4,5H8l3,-4z M2,6v14c0,1.1 0.9,2 2,2h14v-2H4V6H2z",
+)
+private val FolderIcon = icon(
+    "Folder",
+    "M10,4H4c-1.1,0 -1.99,0.9 -1.99,2L2,18c0,1.1 0.9,2 2,2h16c1.1,0 2,-0.9 2,-2V8c0,-1.1 -0.9,-2 -2,-2h-8l-2,-2z",
 )
 private val TextIcon = icon(
     "Notes",

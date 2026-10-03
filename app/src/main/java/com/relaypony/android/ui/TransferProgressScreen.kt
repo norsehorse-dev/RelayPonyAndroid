@@ -23,6 +23,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.relaypony.android.R
 import com.relaypony.android.transfer.LegState
+import com.relaypony.android.transfer.PairingController
 import com.relaypony.android.transfer.SendLeg
 import com.relaypony.android.transfer.SendRoute
 import com.relaypony.android.transfer.TransferController
@@ -64,7 +65,13 @@ fun TransferProgressScreen(controller: TransferController) {
             }
         }
 
-        batch.legs.forEach { leg -> LegCard(leg, onRetry = { controller.retryLeg(leg.handle) }) }
+        batch.legs.forEach { leg ->
+            LegCard(
+                leg,
+                onRetry = { controller.retryLeg(leg.handle) },
+                onPair = { controller.pair.open(PairingController.Tab.QR) },
+            )
+        }
 
         if (batch.active) {
             OutlinedButton(onClick = { controller.stopSending() }, modifier = Modifier.fillMaxWidth()) {
@@ -88,7 +95,7 @@ fun TransferProgressScreen(controller: TransferController) {
 }
 
 @Composable
-private fun LegCard(leg: SendLeg, onRetry: () -> Unit) {
+private fun LegCard(leg: SendLeg, onRetry: () -> Unit, onPair: () -> Unit) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(modifier = Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -135,8 +142,18 @@ private fun LegCard(leg: SendLeg, onRetry: () -> Unit) {
                     LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
                 }
             }
-            if (leg.state == LegState.FAILED) {
+            if (leg.state == LegState.FAILED && leg.refused) {
+                // It answered, but doesn't have this device paired (PROTOCOL_v3 section 9.3).
+                Text(leg.error ?: stringResource(R.string.xfer_refused, leg.name), style = MaterialTheme.typography.bodySmall)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = onPair) { Text(stringResource(R.string.send_pair_peer)) }
+                    TextButton(onClick = onRetry) { Text(stringResource(R.string.pair_try_again)) }
+                }
+            } else if (leg.state == LegState.FAILED) {
                 Text(stringResource(R.string.xfer_unreachable, leg.name), style = MaterialTheme.typography.bodySmall)
+                if (leg.route != SendRoute.NEARBY) {
+                    Text(stringResource(R.string.xfer_relay_hint), style = MaterialTheme.typography.bodySmall)
+                }
                 leg.error?.takeIf { it.isNotBlank() }?.let {
                     Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
                 }

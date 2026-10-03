@@ -36,7 +36,7 @@ a 4.0 peer.
   | `relaypony/pair/ack/v1` | PAIR_ACK tag (section 4.4) | 4.0 |
   | `relaypony/inbox/v1` | Inbox announcement tag (section 5.3) | 4.0 |
   | `relaypony/unpair/v1` | Unpair notice tag (section 4.7) | 4.0 |
-  | `relaypony/hello/v1` | Reserved for authenticated HELLO (section 9) | reserved |
+  | `relaypony/hello/v1` | HELLO sender tag (section 9) | 4.0 |
 
   A key from one `info` is never used for another purpose.
 
@@ -342,18 +342,61 @@ All ops are `POST /api/signal` with a JSON body, as in 1.x. New in 2.0:
   (handle addressing only), and word codes show "Your relay server needs updating for word codes.
   QR pairing still works."
 
-## 9. Capability binding (reserved)
+## 9. Authenticated HELLO and paired-only receive
 
-`LOCAL_CAPS` stays 0 in 4.0, so HELLO capability negotiation remains inert. Before any capability
-bit that affects security ships, HELLO must be authenticated:
+The LAN listener accepts connections from anyone on the network, and the HELLO's name and handle
+are whatever the sender typed. 4.0 binds the handle to its owner and receives from paired devices
+only by default (plan section 9.2, audit 2.4).
+
+### 9.1 Sender tag
+
+A 4.0 sender appends a tail to its HELLO payload, after the handle (v1) or the caps tail (v2):
 
 ```
-HELLO v3 = HELLO v2 body || tag,  tag = HMAC(K("relaypony/hello/v1"), "RPH1" || myBody || peerBody)
+tail = "RPH1" || u64be(timeMs) || tag                    44 bytes
+tag  = HMAC(K("relaypony/hello/v1"), "RPH1" || u64be(timeMs) || body)
 ```
 
-The sender's tag covers its own body only (it hasn't seen the answer). The receiver's answering
-HELLO tag covers both bodies, and the sender verifies it before trusting the negotiated caps. A
-mismatch aborts the session. Not built in 4.0; recorded here so it isn't forgotten.
+`body` is the HELLO payload before the tail and `timeMs` the sender's clock. Readers before 4.0
+ignore trailing HELLO bytes (pinned by tests since 2.0), so the tail is invisible to them. The
+WAN path doesn't need it: its streams are already keyed by the pair key.
+
+### 9.2 Receiver decision
+
+The receiver reads the HELLO and, before anything else:
+
+1. **Verified**: `from` (the HELLO handle) is pinned, the tag verifies under the pair key with
+   `from`, `timeMs` is within 10 minutes of the receiver's clock, and the tag hasn't been seen in
+   the last 20 minutes. The device is remembered as one that tags its HELLO.
+2. **Paired, untagged**: `from` is pinned, there is no tail, and `from` has never sent a tagged
+   HELLO. A 3.x device: accepted, as in 3.x.
+3. **Unpaired allowed**: Advanced, "Accept from unpaired nearby devices" is on. Accepted, and
+   labelled as not paired.
+4. Otherwise the transfer is **refused**. That includes a pinned handle with a bad or stale tag,
+   and a pinned handle that has tagged before but now sends no tail (a downgrade).
+
+Received files are labelled with the pinned name, never the HELLO name, unless case 3 applies.
+
+### 9.3 Refusal
+
+A refused v2 sender gets, instead of the receiver's HELLO, one frame:
+
+```
+0x09 REFUSE   payload "RPR1|" reason        reason: "unpaired"
+```
+
+and the connection closes. A 4.0 sender reads its first answer frame and reports "<name> doesn't
+have this device paired". A v1 sender, or a 3.x v2 sender (which only expects HELLO), sees the
+connection fail, as an older receiver would show it. The receiver keeps a short list of refused
+senders (the Requests card in Received) so its user can pair back.
+
+### 9.4 Limits
+
+The tag binds the HELLO, not the frames after it. Someone on the LAN who captures a tagged HELLO
+and blocks the original could send their own files under that device's name within the freshness
+window; the replay cache stops a second use. Capability negotiation stays inert (`LOCAL_CAPS` is
+0). Before a security-relevant capability ships, the receiver's answering HELLO must carry its own
+tag over both bodies and the sender must verify it.
 
 ## 10. Compatibility
 
@@ -364,6 +407,7 @@ mismatch aborts the session. Not built in 4.0; recorded here so it isn't forgott
 | Word code with a 3.x peer | Not possible: "The other device needs RelayPony 4". |
 | WAN with a 3.x peer | Works through 4.x: handle addressing plus the plaintext signaling copy. |
 | 4.0 on a 1.x self-hosted relay | QR pairing and WAN work with handle addressing; no word codes, no inboxIds. |
+| 3.x sends to 4.0 over the LAN | Accepted if the 3.x device is paired here (untagged HELLO); otherwise refused and listed under Requests. |
 
 ## 11. Test vectors
 
@@ -374,3 +418,101 @@ mismatch aborts the session. Not built in 4.0; recorded here so it isn't forgott
 - The PAKE vectors live in RelayPonyPake (`vectors/pake_vectors.json`, seeded RNG, checked by
   `cargo test`). Interop with python-spake2, the magic-wormhole implementation, was confirmed by
   opening a Rust-sealed data message from a Python peer.
+- `vectors/gen_zip_corpus.py` builds hostile and edge-case archives byte by byte for the folder
+  extractor (section 12) and writes `vectors/zip_corpus.json`, each case with its expected
+  result: the root, paths, contents, directories and skip count, or the refusal reason and
+  whether it is found while planning or while writing. Kotlin and Swift `SafeZipTests` run it.
+
+## 12. Folders
+
+A folder travels as one ordinary file: a zip archive named `<folder>.zip` with mime
+`application/zip`. Nothing on the wire changes, so a 3.x receiver simply gets a zip. A 4.0
+receiver offers Extract on any received `.zip` and treats every archive as hostile, whoever sent
+it.
+
+### 12.1 Sending
+
+- The archive's single top-level directory is the folder itself: `Photos/`, `Photos/a.jpg`,
+  `Photos/trip/b.jpg`. Empty directories get their own `dir/` entries.
+- Methods are stored (0) or deflate (8), with zip64 records when counts, sizes or offsets need
+  them. Android writes deflate at level 0, since photos and video do not shrink. iOS uses the
+  system zipper (`NSFileCoordinator` with `.forUploading`).
+- The zip is built in the app's cache before the send and deleted when the transfer screen
+  closes. The free space check covers the folder's size plus the usual margin.
+
+### 12.2 Reading the archive
+
+Only the central directory is trusted for names, flags and sizes. Checks run in this order and
+the first failure refuses the whole archive (section 12.5 lists the reasons):
+
+1. The end-of-central-directory record must be the last 22 bytes plus its comment, found by
+   scanning back at most 65,557 bytes. None found, or a file under 22 bytes: `NOT_A_ZIP`.
+   Trailing bytes after the comment also give `NOT_A_ZIP`.
+2. Disk numbers must be 0 and the entry count on this disk must equal the total, else
+   `MULTI_DISK`.
+3. If the entry count, directory size or directory offset is saturated (0xFFFF or 0xFFFFFFFF),
+   the zip64 locator must sit 20 bytes before that record and point at a zip64 record placed
+   before it; otherwise `CORRUPT`. The zip64 record's values replace the saturated ones and its
+   disk fields are checked as in step 2.
+4. More entries than `maxEntries` (10,000 by default): `TOO_MANY_ENTRIES`.
+5. The central directory must end at or before the (zip64) end record and be at most 64 MiB,
+   else `CORRUPT`.
+6. Each entry in directory order:
+   1. Header signature, lengths and zip64 extra field (id 0x0001: uncompressed size, compressed
+      size, local offset, disk, each present only when its field is saturated) must parse, else
+      `CORRUPT`. A disk number other than 0 is `MULTI_DISK`.
+   2. General-purpose flag bit 0 (encrypted): `ENCRYPTED`. A method other than 0 or 8:
+      `UNSUPPORTED_METHOD`.
+   3. The path rules of section 12.3.
+   4. A file (not a directory) larger than `maxFileBytes`: `TOO_LARGE`.
+   5. The local header at the entry's offset must carry its signature; its name and extra
+      lengths give where the data starts, and the data must end at or before the central
+      directory. A stored entry's two sizes must match. Any failure is `CORRUPT`.
+   6. Skipped, never written: Unix symlinks (made-by host 3 and mode `0xA000` in the high 16 bits
+      of the external attributes), anything under a `__MACOSX` component, `.DS_Store` files, and
+      entries with no path left. Only skipped files are counted, not skipped directories.
+   7. The running total of kept files larger than `maxTransferBytes`: `TOO_LARGE`.
+7. Sorted by local header offset, no entry's span (local header through the end of its data)
+   may overlap the next one: `OVERLAP`. This stops archives that reuse one body under many names.
+
+### 12.3 Paths
+
+1. Names decode as UTF-8 when the bytes are valid UTF-8, otherwise as ISO-8859-1. Then `\`
+   becomes `/`, and a trailing `/` marks a directory.
+2. A character below U+0020 or equal to U+007F: `UNSAFE_PATH`. A leading `/`, or a name that
+   starts with a drive letter and colon (`C:`): `UNSAFE_PATH`.
+3. The name splits on `/`. Empty and `.` components are dropped. A component whose NFKC form is
+   `..`, or contains `/` or `\`, is `UNSAFE_PATH` (this catches fullwidth dots and slashes). One
+   whose NFKC form is `.` is dropped.
+4. More than 32 components: `TOO_DEEP`.
+5. Each kept component is cleaned: NFC; each of `" * : < > ? |` becomes `_`; trailing spaces
+   and dots and leading spaces are removed; an empty result becomes `_`; then it is capped at
+   200 UTF-8 bytes, keeping an extension of up to 16 characters.
+6. Root: when there is at least one file, every kept entry has the same first component, and
+   every file has at least two components, that component is the root folder and is removed
+   from every path. Otherwise the root is the archive name without `.zip` (any case), cleaned as
+   a component, or `Folder` when nothing is left. The receiver creates the root under its own
+   destination and picks a free name if it is taken.
+7. Collisions are checked case-insensitively (Unicode lower case), in directory order. Each
+   directory prefix of an entry, and each directory entry, claims its path as a folder; a path
+   already claimed as a file is `CONFLICT`. A file whose path is already a folder is `CONFLICT`.
+   A file whose path is already a file is renamed `name (2).ext`, then `(3)` and so on, until
+   it is free. Directory entries are reported once each, in order, for receivers that create
+   empty folders; Android does not.
+
+### 12.4 Writing
+
+- Before anything is written, the declared total of kept files plus the free space margin must
+  fit in the destination's free space, else `NO_SPACE`.
+- Each file is written through the receiver's own sink at the planned path. Inflate output is
+  stopped as soon as it would pass the declared size. The file must end at exactly the declared
+  size, with a matching CRC-32, and a deflate stream must finish inside its compressed span (no
+  padding byte is added). Anything else is `CORRUPT`.
+- On any failure the receiver removes everything it wrote for this archive. Links, devices and
+  permissions in the archive are never applied: every output is a plain new file.
+
+### 12.5 Refusal reasons
+
+`NOT_A_ZIP`, `MULTI_DISK`, `CORRUPT`, `ENCRYPTED`, `UNSUPPORTED_METHOD`, `UNSAFE_PATH`,
+`TOO_DEEP`, `TOO_MANY_ENTRIES`, `TOO_LARGE`, `NO_SPACE`, `CONFLICT`, `OVERLAP`. The apps show one
+plain sentence per reason; the names are for tests and logs.

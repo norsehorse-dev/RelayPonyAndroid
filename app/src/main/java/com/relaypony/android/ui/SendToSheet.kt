@@ -20,6 +20,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.setValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
@@ -30,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.relaypony.android.R
 import com.relaypony.android.transfer.PairingController
 import com.relaypony.android.transfer.TransferController
+import kotlinx.coroutines.delay
 
 /**
  * Choose who gets the picked content (plan section 4.3). Tapping a device sends to it straight
@@ -48,6 +53,15 @@ fun SendToSheet(controller: TransferController) {
     val targets = remember(revision, nearbyCount, controller.peers.toList()) { controller.sendTargets() }
     val selected = remember { mutableStateListOf<String>().apply { addAll(controller.sendToPreselect.value) } }
     val canScan = rememberHasCamera()
+    // Plan section 10: on Wi-Fi for a while with paired devices but none seen nearby, the network
+    // may be keeping devices apart (client isolation).
+    var lookedAWhile by remember { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        delay(10_000)
+        lookedAWhile = true
+    }
+    val isolationHint = lookedAWhile && targets.isNotEmpty() && targets.none { it.nearby } &&
+        controller.reachableAddresses.isNotEmpty()
 
     ModalBottomSheet(onDismissRequest = { controller.sendToOpen.value = false }, sheetState = sheetState) {
         Column(
@@ -69,6 +83,13 @@ fun SendToSheet(controller: TransferController) {
             }
             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
+            if (isolationHint) {
+                Text(
+                    stringResource(R.string.sendto_isolation),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             if (targets.isEmpty()) {
                 Text(stringResource(R.string.sendto_no_devices), style = MaterialTheme.typography.bodyMedium)
             }

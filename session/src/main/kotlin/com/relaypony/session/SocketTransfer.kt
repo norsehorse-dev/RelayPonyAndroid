@@ -65,6 +65,8 @@ object SocketTransfer {
         onProgress: ((Long, Long) -> Unit)? = null,
         limits: TransferLimits = TransferLimits.DEFAULT,
         firstFrameTimeoutMs: Int = FIRST_FRAME_TIMEOUT_MS,
+        /** 4.0: who to take (section 9.2); see [Session.receive]. */
+        gate: ((WireProtocol.Hello) -> String?)? = null,
         sink: FileSink,
     ): ReceiveResult? {
         server.accept().use { socket ->
@@ -94,6 +96,7 @@ object SocketTransfer {
                 recipientHandle = recipientHandle,
                 onProgress = onProgress,
                 limits = limits,
+                gate = gate,
             )
         }
     }
@@ -111,6 +114,8 @@ object SocketTransfer {
         files: List<OutgoingFile>,
         peerMaxWire: Int = 1,
         connectTimeoutMs: Int = 10_000,
+        /** 4.0: builds the HELLO sender tag tail (section 9.1); see [HelloAuth.signer]. */
+        helloAuth: ((ByteArray) -> ByteArray)? = null,
         /** Handed the socket before connecting, so the caller can close it to stop the send. */
         onSocket: ((Socket) -> Unit)? = null,
         // Last, so existing callers can keep passing progress as a trailing lambda.
@@ -125,6 +130,7 @@ object SocketTransfer {
                     provider, recipients, deviceName, senderRecipientHandle, files, out,
                     peerMaxWire = peerMaxWire,
                     reverseIn = reverseIn,
+                    helloAuth = helloAuth,
                     onProgress = onProgress,
                 )
             }

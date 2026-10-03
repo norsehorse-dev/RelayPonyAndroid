@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -24,6 +25,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,6 +36,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.relaypony.android.R
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import com.relaypony.android.transfer.ClipText
+import com.relaypony.android.transfer.FolderExtractor
+import com.relaypony.android.transfer.PairingController
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.io.File
 import com.relaypony.android.transfer.TransferController
 import com.relaypony.session.inbox.ReceivedFile
 import java.util.Locale
@@ -41,6 +54,7 @@ import java.util.Locale
 @Composable
 fun InboxScreen(controller: TransferController) {
     var pendingSave by remember { mutableStateOf<ReceivedFile?>(null) }
+    var pendingExtract by remember { mutableStateOf<ReceivedFile?>(null) }
     var pendingDelete by remember { mutableStateOf<ReceivedFile?>(null) }
 
     val storagePermMsg = stringResource(R.string.inbox_perm_msg)
@@ -48,8 +62,11 @@ fun InboxScreen(controller: TransferController) {
         ActivityResultContracts.RequestPermission()
     ) { granted ->
         val file = pendingSave
+        val zip = pendingExtract
         pendingSave = null
+        pendingExtract = null
         if (granted && file != null) controller.saveToDownloads(file)
+        else if (granted && zip != null) controller.extractFolder(zip)
         else if (!granted) controller.showNotice(storagePermMsg)
     }
     fun save(file: ReceivedFile) {
@@ -60,6 +77,14 @@ fun InboxScreen(controller: TransferController) {
             controller.saveToDownloads(file)
         }
     }
+    fun extract(file: ReceivedFile) {
+        if (controller.needsStoragePermission()) {
+            pendingExtract = file
+            savePermLauncher.launch(android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        } else {
+            controller.extractFolder(file)
+        }
+    }
 
     Column(
         modifier = Modifier
@@ -68,6 +93,26 @@ fun InboxScreen(controller: TransferController) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        // Refused senders (PROTOCOL_v3 section 9.3): pairing back lets them send.
+        controller.requests.toList().forEach { request ->
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+            ) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(stringResource(R.string.req_title, request.name), style = MaterialTheme.typography.titleSmall)
+                    Text(stringResource(R.string.req_body), style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        TextButton(onClick = { controller.pair.open(PairingController.Tab.QR) }) {
+                            Text(stringResource(R.string.send_pair_peer))
+                        }
+                        TextButton(onClick = { controller.dismissRequest(request) }) {
+                            Text(stringResource(R.string.req_dismiss))
+                        }
+                    }
+                }
+            }
+        }
         if (controller.receiveInProgress.value || controller.wanReceiving.value) {
             Card(modifier = Modifier.fillMaxWidth()) {
                 Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -113,6 +158,7 @@ fun InboxScreen(controller: TransferController) {
                                 )
                             }
                         }
+                        ContentActions(controller, file) { extract(file) }
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -162,6 +208,81 @@ fun InboxScreen(controller: TransferController) {
             },
         )
     }
+}
+
+/**
+ * Extra actions by content: Extract for a zip (PROTOCOL_v3 section 12), and Copy, plus Open link
+ * for a single URL, for a small text drop (plan section 5, the same rule iOS uses).
+ */
+@Composable
+private fun ContentActions(controller: TransferController, file: ReceivedFile, onExtract: () -> Unit) {
+    val context = LocalContext.current
+    val clip by produceState<ClipText.Sniff?>(null, file.id) {
+        if (ClipText.isCandidate(file.name, file.size)) {
+            value = withContext(Dispatchers.IO) {
+                runCatching {
+                    val f = File(file.localPath)
+                    if (f.length() <= ClipText.MAX_SNIFF_BYTES) ClipText.sniff(f.readBytes()) else null
+                }.getOrNull()
+            }
+        }
+    }
+    val copied = stringResource(R.string.inbox_copied)
+    val linkFailed = stringResource(R.string.inbox_link_failed)
+    val isZip = FolderExtractor.isArchive(file.name)
+    val current = clip
+    if (!isZip && current == null) return
+
+    when (current) {
+        is ClipText.Sniff.Text -> Text(
+            current.text.trim(),
+            style = MaterialTheme.typography.bodyMedium,
+            maxLines = 3,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        is ClipText.Sniff.Link -> Text(
+            current.url,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 2,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.padding(top = 8.dp),
+        )
+        null -> {}
+    }
+    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        if (isZip) {
+            val busy = controller.extractingId.value
+            TextButton(onClick = onExtract, enabled = busy == null) {
+                Text(stringResource(if (busy == file.id) R.string.inbox_extracting else R.string.inbox_extract))
+            }
+        }
+        if (current != null) {
+            TextButton(onClick = {
+                val text = when (current) {
+                    is ClipText.Sniff.Text -> current.text
+                    is ClipText.Sniff.Link -> current.url
+                }
+                copyToClipboard(context, text)
+                controller.showNotice(copied)
+            }) { Text(stringResource(R.string.inbox_copy)) }
+        }
+        if (current is ClipText.Sniff.Link) {
+            TextButton(onClick = {
+                runCatching {
+                    context.startActivity(
+                        Intent(Intent.ACTION_VIEW, Uri.parse(current.url)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                    )
+                }.onFailure { controller.showNotice(linkFailed) }
+            }) { Text(stringResource(R.string.inbox_open_link)) }
+        }
+    }
+}
+
+private fun copyToClipboard(context: Context, text: String) {
+    val cm = context.getSystemService(ClipboardManager::class.java) ?: return
+    cm.setPrimaryClip(ClipData.newPlainText("RelayPony", text))
 }
 
 @Composable

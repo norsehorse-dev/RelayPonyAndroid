@@ -12,6 +12,7 @@ import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.net.InetAddress
 import java.net.ServerSocket
 import java.net.Socket
 import java.util.concurrent.LinkedBlockingQueue
@@ -30,6 +31,13 @@ class LanPairingTests {
     @AfterEach
     fun closeServers() = servers.forEach { runCatching { it.close() } }
 
+    /**
+     * A listener on 127.0.0.1 only. A wildcard socket on a busy machine can share its port number
+     * with another process's loopback listener, which then takes the test's connections.
+     */
+    private fun loopbackServer(): ServerSocket =
+        ServerSocket(0, 50, InetAddress.getByName("127.0.0.1")).also { servers += it }
+
     /** One device: a pairing service, a real listener, and a queue its "main thread" drains. */
     private inner class Device(val name: String, val relays: HashMap<String, ArrayDeque<ByteArray>>, val alsoRelay: Boolean) {
         val identity = provider.generateIdentity()
@@ -39,7 +47,7 @@ class LanPairingTests {
         val routes = InMemoryPeerRouteStore()
         val events = ArrayList<PairingService.Event>()
         val lanInbound = LinkedBlockingQueue<ByteArray>()
-        val server = ServerSocket(0).also { servers += it }
+        val server = loopbackServer()
         /** Discovery stand-in: handle -> port of devices "seen" on the LAN with pr=1. */
         lateinit var lan: Map<String, Int>
 
@@ -57,14 +65,18 @@ class LanPairingTests {
             thread(isDaemon = true, name = "accept-$name") {
                 while (!server.isClosed) {
                     runCatching {
-                        SocketTransfer.acceptOne(server, provider, identity, onPair = { lanInbound.put(it) }) { ByteArrayOutputStream() }
+                        SocketTransfer.acceptOne(
+                            server, provider, identity,
+                            onPair = { lanInbound.put(it) },
+                            firstFrameTimeoutMs = 1_000,      // a stray silent connection can't hold the listener
+                        ) { ByteArrayOutputStream() }
                     }
                 }
             }
         }
 
         /** Wait for one LAN PAIR frame and handle it on this thread, as the app's main thread would. */
-        fun pumpLan(timeoutMs: Long = 5_000): Boolean {
+        fun pumpLan(timeoutMs: Long = 10_000): Boolean {
             val got = lanInbound.poll(timeoutMs, TimeUnit.MILLISECONDS) ?: return false
             service.onLanPair(got)
             return true
@@ -130,7 +142,7 @@ class LanPairingTests {
     fun listenerStillReceivesFiles_afterBranchingOnTheFirstFrame() {
         val identity = provider.generateIdentity()
         val recipient = provider.recipientOf(identity)
-        val server = ServerSocket(0).also { servers += it }
+        val server = loopbackServer()
         val payload = ByteArray(200_000) { it.toByte() }
         val got = ByteArrayOutputStream()
         var pairs = 0
@@ -150,7 +162,7 @@ class LanPairingTests {
     @Test
     fun oversizedPairFrame_isDroppedWithoutThrowing() {
         val identity = provider.generateIdentity()
-        val server = ServerSocket(0).also { servers += it }
+        val server = loopbackServer()
         var pairs = 0
         var result: Any? = "unset"
         val t = thread {
@@ -171,7 +183,7 @@ class LanPairingTests {
     @Test
     fun silentConnection_timesOutInsteadOfHoldingTheListener() {
         val identity = provider.generateIdentity()
-        val server = ServerSocket(0).also { servers += it }
+        val server = loopbackServer()
         var result: Any? = "unset"
         var error: Throwable? = null
         val t = thread {

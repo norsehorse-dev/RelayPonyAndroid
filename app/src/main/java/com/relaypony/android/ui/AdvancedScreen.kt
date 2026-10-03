@@ -23,6 +23,7 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -91,6 +92,16 @@ fun AdvancedScreen(controller: TransferController) {
     ) {
         // ---- Pairing ----
         PairedDevicesSection(controller)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(stringResource(R.string.adv_accept_unpaired), style = MaterialTheme.typography.bodyLarge)
+                Text(stringResource(R.string.adv_accept_unpaired_d), style = MaterialTheme.typography.bodySmall)
+            }
+            Switch(checked = controller.acceptUnpaired.value, onCheckedChange = { controller.setAcceptUnpaired(it) })
+        }
         VerifyNearbySection(controller)
 
         HorizontalDivider()

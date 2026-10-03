@@ -55,6 +55,18 @@ object WireProtocol {
      */
     const val PAIR: Byte = 0x08
 
+    /**
+     * 4.0: the receiver's answer to a sender it won't take (PROTOCOL_v3 section 9.3), in place of
+     * its HELLO. Payload `RPR1|<reason>`; the connection closes after it.
+     */
+    const val REFUSE: Byte = 0x09
+
+    /** The marker that starts a HELLO sender tag tail (section 9.1). */
+    val HELLO_AUTH_MAGIC: ByteArray = "RPH1".toByteArray(Charsets.US_ASCII)
+
+    /** Magic, u64 time, 32-byte tag. */
+    const val HELLO_AUTH_TAIL_BYTES: Int = 4 + 8 + 32
+
     /** Largest PAIR payload. Both pairing messages are age files well under this. */
     const val MAX_PAIR_PAYLOAD: Int = 16 * 1024
 
@@ -108,7 +120,12 @@ object WireProtocol {
         val recipientHandle: String,
         /** Capability bitmask from a v2 HELLO; 0 for a v1 HELLO (no caps tail). */
         val caps: Int = 0,
+        /** The sender tag tail (section 9.1), or null when the HELLO carries none. */
+        val auth: HelloAuthTail? = null,
     )
+
+    /** A HELLO sender tag as read: the time and tag, and the exact bytes they cover. */
+    class HelloAuthTail(val timeMs: Long, val tag: ByteArray, val body: ByteArray)
 
     fun writeFrame(out: OutputStream, type: Byte, payload: ByteArray) {
         val max = maxPayloadFor(type)
@@ -132,7 +149,17 @@ object WireProtocol {
         return Frame(type, payload)
     }
 
-    fun writeHello(out: OutputStream, schemeId: Byte, deviceName: String, recipientHandle: String) {
+    /**
+     * Write a v1 HELLO. [authTail], when given, is called with the finished body and returns the
+     * sender tag tail to append (section 9.1).
+     */
+    fun writeHello(
+        out: OutputStream,
+        schemeId: Byte,
+        deviceName: String,
+        recipientHandle: String,
+        authTail: ((ByteArray) -> ByteArray)? = null,
+    ) {
         val name = deviceName.toByteArray(Charsets.UTF_8)
         val handle = recipientHandle.toByteArray(Charsets.UTF_8)
         val body = ByteArrayOutputStream()
@@ -142,12 +169,22 @@ object WireProtocol {
         body.write(name)
         writeU16(body, handle.size)
         body.write(handle)
-        writeFrame(out, HELLO, body.toByteArray())
+        writeFrame(out, HELLO, withTail(body.toByteArray(), authTail))
     }
+
+    private fun withTail(body: ByteArray, authTail: ((ByteArray) -> ByteArray)?): ByteArray =
+        if (authTail == null) body else body + authTail(body)
 
     /** Write a v2 HELLO: the v1 body plus a `[u16 capsLen][caps]` tail (caps little-endian, byte 0
      *  first). Used only once both sides are known to speak v2; a v1 peer never sees this. */
-    fun writeHelloV2(out: OutputStream, schemeId: Byte, deviceName: String, recipientHandle: String, caps: Int) {
+    fun writeHelloV2(
+        out: OutputStream,
+        schemeId: Byte,
+        deviceName: String,
+        recipientHandle: String,
+        caps: Int,
+        authTail: ((ByteArray) -> ByteArray)? = null,
+    ) {
         val name = deviceName.toByteArray(Charsets.UTF_8)
         val handle = recipientHandle.toByteArray(Charsets.UTF_8)
         val body = ByteArrayOutputStream()
@@ -160,13 +197,17 @@ object WireProtocol {
         writeU16(body, 2)                       // capsLen
         body.write(caps and 0xff)               // byte 0 (low)
         body.write((caps ushr 8) and 0xff)      // byte 1 (high)
-        writeFrame(out, HELLO, body.toByteArray())
+        writeFrame(out, HELLO, withTail(body.toByteArray(), authTail))
     }
 
     fun readHello(input: InputStream): Hello {
         val frame = readFrame(input) ?: throw WireException("expected HELLO, got EOF")
         if (frame.type != HELLO) throw WireException("expected HELLO frame, got type ${frame.type}")
-        val p = frame.payload
+        return parseHello(frame.payload)
+    }
+
+    /** Parse a HELLO payload (the frame already read). */
+    fun parseHello(p: ByteArray): Hello {
         var i = 0
         fun u8(): Int {
             if (i >= p.size) throw WireException("HELLO truncated")
@@ -197,7 +238,26 @@ object WireProtocol {
             if (available >= 2) caps = caps or ((p[i + 1].toInt() and 0xff) shl 8)
             i += available
         }
-        return Hello(version, scheme, name, handle, caps)
+
+        // 4.0: a sender tag tail may follow (section 9.1). Anything else trailing stays ignored.
+        var auth: HelloAuthTail? = null
+        if (p.size - i >= HELLO_AUTH_TAIL_BYTES &&
+            p.copyOfRange(i, i + 4).contentEquals(HELLO_AUTH_MAGIC)
+        ) {
+            var t = 0L
+            for (k in 0 until 8) t = (t shl 8) or (p[i + 4 + k].toLong() and 0xff)
+            auth = HelloAuthTail(t, p.copyOfRange(i + 12, i + 44), p.copyOfRange(0, i))
+        }
+        return Hello(version, scheme, name, handle, caps, auth)
+    }
+
+    /** The REFUSE payload for [reason]. */
+    fun refusePayload(reason: String): ByteArray = "RPR1|$reason".toByteArray(Charsets.UTF_8)
+
+    /** The reason in a REFUSE payload, or "unknown" if it isn't one. */
+    fun refuseReason(payload: ByteArray): String {
+        val s = String(payload, Charsets.UTF_8)
+        return if (s.startsWith("RPR1|")) s.removePrefix("RPR1|") else "unknown"
     }
 
     // --- byte helpers ---

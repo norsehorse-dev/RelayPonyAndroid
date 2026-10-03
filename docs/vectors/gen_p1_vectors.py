@@ -69,6 +69,16 @@ unpair_body = "|".join(["RPU1", HANDLE_A, HANDLE_B, str(UNPAIR_AT)])
 out["unpair"] = {"key": K("relaypony/unpair/v1").hex(), "atMs": UNPAIR_AT, "body": unpair_body,
                  "tag": tag("relaypony/unpair/v1", unpair_body)}
 
+# Authenticated HELLO (section 9): A's HELLO v2 to B, with the sender tag tail.
+HELLO_AT = 1791000000000
+def u16(n): return n.to_bytes(2, "big")
+hello_name = "Test Phone 8".encode()
+hello_body = bytes([2, 1]) + u16(len(hello_name)) + hello_name + u16(len(HANDLE_A)) + HANDLE_A.encode() + u16(2) + b"\x00\x00"
+hello_tag = hmac.new(K("relaypony/hello/v1"), b"RPH1" + HELLO_AT.to_bytes(8, "big") + hello_body, hashlib.sha256).digest()
+out["hello_auth"] = {"key": K("relaypony/hello/v1").hex(), "timeMs": HELLO_AT, "body": hello_body.hex(),
+                     "tail": (b"RPH1" + HELLO_AT.to_bytes(8, "big") + hello_tag).hex()}
+out["refuse_payload"] = "RPR1|unpaired"
+
 out["pake_mailbox"] = {
     "nameplate": 47,
     "default_A": mbox(47, "", "A"), "default_B": mbox(47, "", "B"),
