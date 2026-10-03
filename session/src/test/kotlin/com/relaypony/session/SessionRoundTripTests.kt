@@ -44,7 +44,8 @@ class SessionRoundTripTests {
             provider,
             identity,
             ByteArrayInputStream(wire.toByteArray()),
-        ) { entry -> ByteArrayOutputStream().also { received[entry.name] = it } }
+            sink = { entry -> ByteArrayOutputStream().also { received[entry.name] = it } },
+        )
 
         assertEquals("Kevins-Phone", result.senderName)
         assertEquals(contents.keys.toList(), result.manifest.files.map { it.name })
@@ -80,9 +81,9 @@ class SessionRoundTripTests {
 
         val identity = provider.generateIdentity()
         assertThrows(UnsupportedSchemeException::class.java) {
-            Session.receive(provider, identity, ByteArrayInputStream(wire.toByteArray())) {
+            Session.receive(provider, identity, ByteArrayInputStream(wire.toByteArray()), sink = {
                 OutputStream.nullOutputStream()
-            }
+            })
         }
     }
 

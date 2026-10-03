@@ -6,6 +6,7 @@ import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
 import androidx.annotation.RequiresApi
+import com.relaypony.session.FileNames
 import java.io.File
 import java.io.IOException
 
@@ -19,10 +20,14 @@ object DownloadsSaver {
 
     /** Returns true on success. Never throws; failures are reported as false. */
     fun save(context: Context, source: File, name: String, mime: String): Boolean = try {
+        // Backstop for audit 2.3: callers already pass a sanitized name, but this is the sink that
+        // turns a name into a public path, so it never trusts one. Also covers inbox records
+        // written by 3.x, which stored the sender's raw name.
+        val safeName = FileNames.sanitize(name)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            saveViaMediaStore(context, source, name, mime)
+            saveViaMediaStore(context, source, safeName, mime)
         } else {
-            saveLegacy(source, name)
+            saveLegacy(source, safeName)
         }
         true
     } catch (t: Throwable) {

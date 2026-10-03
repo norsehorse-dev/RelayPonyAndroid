@@ -3,6 +3,8 @@ package com.relaypony.session
 import com.agepony.core.Age
 import com.agepony.core.recipients.ScryptIdentity
 import com.agepony.core.recipients.ScryptRecipient
+import com.relaypony.session.pairing.InboxIds
+import com.relaypony.session.pairing.PeerRoute
 import com.relaypony.session.pairing.PinnedDevice
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.json.Json
@@ -38,13 +40,31 @@ object IdentityBackup {
         val version: Int = FORMAT_VERSION,
         val identity: String,               // AGE-SECRET-KEY-1…
         val devices: List<Dev>,
+        // 4.0: this device's private relay inbox, so a restore keeps the inbox paired devices
+        // already post to. Optional; older backups and older readers ignore it.
+        val inboxId: String? = null,
     )
 
     @Serializable
-    private data class Dev(val handle: String, val name: String, val pinnedAtEpochMs: Long)
+    private data class Dev(
+        val handle: String,
+        val name: String,
+        val pinnedAtEpochMs: Long,
+        // 4.0: where to reach this paired device on the relay. Optional, as above.
+        val inboxId: String? = null,
+        val relay: String? = null,
+    )
 
     /** The decoded contents of a backup, ready for a controller to apply. */
-    data class Imported(val identitySecret: String, val devices: List<PinnedDevice>)
+    data class Imported(
+        val identitySecret: String,
+        val devices: List<PinnedDevice>,
+        val inboxId: String? = null,
+        val routes: Map<String, PeerRoute> = emptyMap(),
+    )
+
+    private fun routesOf(devs: List<Dev>): Map<String, PeerRoute> =
+        devs.mapNotNull { d -> d.inboxId?.takeIf { InboxIds.isValid(it) }?.let { d.handle to PeerRoute(it, d.relay ?: "") } }.toMap()
 
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
     private val envelopeSerializer = Envelope.serializer()
@@ -83,10 +103,21 @@ object IdentityBackup {
     }
 
     /** Serialize {identity, devices} to JSON and scrypt-encrypt it to [passphrase], streamed to [out]. */
-    fun export(passphrase: String, identitySecret: String, devices: List<PinnedDevice>, out: OutputStream) {
+    fun export(
+        passphrase: String,
+        identitySecret: String,
+        devices: List<PinnedDevice>,
+        out: OutputStream,
+        inboxId: String? = null,
+        routes: Map<String, PeerRoute> = emptyMap(),
+    ) {
         val envelope = Envelope(
             identity = identitySecret,
-            devices = devices.map { Dev(it.recipientHandle, it.name, it.pinnedAtEpochMs) },
+            devices = devices.map {
+                val r = routes[it.recipientHandle]
+                Dev(it.recipientHandle, it.name, it.pinnedAtEpochMs, r?.inboxId, r?.relay)
+            },
+            inboxId = inboxId,
         )
         val plain = json.encodeToString(envelopeSerializer, envelope).toByteArray(Charsets.UTF_8)
         Age.encryptStream(ByteArrayInputStream(plain), listOf(ScryptRecipient(passphrase)), out)
@@ -109,6 +140,8 @@ object IdentityBackup {
         return Imported(
             envelope.identity,
             envelope.devices.map { PinnedDevice(it.handle, it.name, it.pinnedAtEpochMs) },
+            envelope.inboxId?.takeIf { InboxIds.isValid(it) },
+            routesOf(envelope.devices),
         )
     }
 }

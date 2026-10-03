@@ -122,6 +122,9 @@ object Session {
         deviceName: String = "",
         recipientHandle: String = "",
         localCaps: Int = WireProtocol.LOCAL_CAPS,
+        // Not last: callers pass the sink as a trailing lambda, so the final parameter stays
+        // the function-typed onProgress, exactly as in 3.x.
+        limits: TransferLimits = TransferLimits.DEFAULT,
         onNegotiated: ((Int, Int) -> Unit)? = null,
         onProgress: ((Long, Long) -> Unit)? = null,
     ): ReceiveResult {
@@ -151,6 +154,7 @@ object Session {
             Manifest.serializer(),
             String(manifestPlain.toByteArray(), Charsets.UTF_8),
         )
+        limits.checkManifest(manifest)
 
         val totalBytes = manifest.files.sumOf { it.size }
         var recvBytes = 0L
@@ -165,7 +169,7 @@ object Session {
             }
             val body = FrameChunkInputStream(input)
             sink.openSink(entry).use { rawOut ->
-                val counting = CountingOutputStream(rawOut) { delta ->
+                val counting = LimitingOutputStream(rawOut, limits, { recvBytes }) { delta ->
                     recvBytes += delta
                     val pct = if (totalBytes > 0) recvBytes * 100 / totalBytes else 100
                     if (pct != lastRecvPct) {

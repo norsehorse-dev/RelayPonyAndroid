@@ -1,0 +1,51 @@
+{
+  "sas_v2": {
+    "handleA": "age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72",
+    "handleB": "age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad",
+    "nonceA": "000102030405060708090a0b0c0d0e0f",
+    "nonceB": "101112131415161718191a1b1c1d1e1f",
+    "digest": "1b65b27995fee5587d8e4faad1b6d3b2dae87bc2c78f06193b4282a297490b85",
+    "code": "49127512",
+    "code_nonces_swapped": "11621758"
+  },
+  "qr_v2": {
+    "name": "Test Phone 8",
+    "inboxId": "QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8",
+    "pairNonce": "AAECAwQFBgcICQoLDA0ODw",
+    "default_relay": "RP2|01|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|Test+Phone+8|AAECAwQFBgcICQoLDA0ODw|QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8|",
+    "custom_relay": "RP2|01|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|Test+Phone+8|AAECAwQFBgcICQoLDA0ODw|QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8|https%3A%2F%2Frelay.example.com",
+    "relay": "https://relay.example.com"
+  },
+  "pair_req_plain": "RPQ1|age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad|Test+Tablet|YGFiY2RlZmdoaWprbG1ub3BxcnN0dXZ3eHl6e3x9fn8||AAECAwQFBgcICQoLDA0ODw|EBESExQVFhcYGRobHB0eHw",
+  "pair_ack": {
+    "key": "8aacb989f8967b82d662526b4b4a745551a229c6adadece883692177725388b1",
+    "body": "RPA1|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad|EBESExQVFhcYGRobHB0eHw|ok",
+    "tag": "16c3a2410c017f6d47fde64bcc81ca628bdc4683a4fa71abca25a8c3492023d5"
+  },
+  "inbox_announce": {
+    "key": "68a89dca288a1fe24b9bfd30dcb2859f3a3e71de1048c00a72dfdbfce3aacf09",
+    "body": "RPI1|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad|QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8|https%3A%2F%2Frelay.example.com",
+    "tag": "f3f5122ada357225ab6649b1210b46500ccd58007bc8379c6e9c82c1ea2f7f64"
+  },
+  "pake_mailbox": {
+    "nameplate": 47,
+    "default_A": "MQ6BLcYL7MxTfQd8dULQXBeV_RrJ5t08_zViFtYVDXA",
+    "default_B": "afabDsvjh7QDSe0IWLYJSwWW1kN3S1jEsiN7Yb4DRTA",
+    "custom_relay": "https://relay.example.com",
+    "custom_A": "Y_dnZiuJr1dED9VeyPuUMKssDb_d-L1DAAx44fSA230"
+  },
+  "normalize_code": [
+    [
+      "47-lantern-orbit-maple",
+      "47-lantern-orbit-maple"
+    ],
+    [
+      "  47 Lantern  ORBIT_maple ",
+      "47-lantern-orbit-maple"
+    ],
+    [
+      "47--lantern..orbit-maple-",
+      "47-lantern-orbit-maple"
+    ]
+  ]
+}

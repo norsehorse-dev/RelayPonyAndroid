@@ -23,8 +23,12 @@ import java.io.ByteArrayOutputStream
  *
  * Frame: ["RPB1"][type u8][body]
  *   PROBE    (0x01) body: empty. "Anyone there?" — broadcast.
- *   ANNOUNCE (0x02) body: [tcpPort u16][maxWire u8][nameLen u16][name][handleLen u16][handle]
+ *   ANNOUNCE (0x02) body: [tcpPort u16][maxWire u8][nameLen u16][name][handleLen u16][handle][flags u8]?
  *                   Sent unicast in reply to a PROBE, and broadcast periodically for late joiners.
+ *
+ * The trailing flags byte is 4.0. It is written only when a flag is set, and 3.x decoders stop after
+ * the handle and never look at it, so it is invisible to them. Bit 0 ([FLAG_PAIR]) says the
+ * listener accepts a PAIR frame (PROTOCOL_v3 section 4.5); the other bits are reserved and ignored.
  */
 object Beacon {
 
@@ -46,6 +50,9 @@ object Beacon {
     private const val TYPE_PROBE = 0x01
     private const val TYPE_ANNOUNCE = 0x02
 
+    /** ANNOUNCE flag: this listener accepts a PAIR frame (the beacon's twin of the `pr=1` TXT key). */
+    const val FLAG_PAIR = 0x01
+
     /** Anything larger is not ours. Keeps a hostile packet from making us allocate. */
     const val MAX_FRAME = 512
 
@@ -60,12 +67,16 @@ object Beacon {
             val maxWire: Int,
             val deviceName: String,
             val recipientHandle: String,
-        ) : Message
+            /** 4.0 flags byte; 0 from any 3.x device. */
+            val flags: Int = 0,
+        ) : Message {
+            val pairCapable: Boolean get() = (flags and FLAG_PAIR) != 0
+        }
     }
 
     fun encodeProbe(): ByteArray = MAGIC + byteArrayOf(TYPE_PROBE.toByte())
 
-    fun encodeAnnounce(tcpPort: Int, maxWire: Int, deviceName: String, recipientHandle: String): ByteArray {
+    fun encodeAnnounce(tcpPort: Int, maxWire: Int, deviceName: String, recipientHandle: String, flags: Int = 0): ByteArray {
         require(tcpPort in 1..0xFFFF) { "tcpPort out of range: $tcpPort" }
         require(recipientHandle.isNotEmpty()) { "cannot announce an empty handle" }
         val name = truncateUtf8(deviceName, MAX_NAME_BYTES)
@@ -81,6 +92,7 @@ object Beacon {
         out.write(name)
         writeU16(out, handle.size)
         out.write(handle)
+        if ((flags and 0xFF) != 0) out.write(flags and 0xFF)
         return out.toByteArray()
     }
 
@@ -104,9 +116,10 @@ object Beacon {
                 val name = String(data, p, nameLen, Charsets.UTF_8); p += nameLen
                 val handleLen = readU16(data, p); p += 2
                 if (handleLen == 0 || handleLen > MAX_HANDLE_BYTES || length < p + handleLen) return null
-                val handle = String(data, p, handleLen, Charsets.UTF_8)
+                val handle = String(data, p, handleLen, Charsets.UTF_8); p += handleLen
                 if (tcpPort == 0) return null
-                Message.Announce(tcpPort, maxOf(1, maxWire), name, handle)
+                val flags = if (length > p) data[p].toInt() and 0xFF else 0
+                Message.Announce(tcpPort, maxOf(1, maxWire), name, handle, flags)
             }
             else -> null
         }

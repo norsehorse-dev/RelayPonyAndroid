@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<lint>
+    <!--
+      UniFFI-generated bindings (pake/src/main/kotlin/uniffi/, gitignored,
+      regenerated fresh by scripts/build-pake.sh on every build) defensively
+      probe for java.lang.ref.Cleaner via Class.forName plus try/catch
+      before ever constructing the class that calls Cleaner.create(),
+      falling back to a JNA-based cleaner on ClassNotFoundException; so
+      that call only ever runs on API levels where the class actually
+      exists (API 33+ or a plain JVM). Lint's static NewApi check can't
+      follow a reflection-based version guard like that, which is a
+      well-known false positive in uniffi-rs's own Kotlin codegen, not a
+      real crash risk on this project's minSdk 23. See
+      UniffiCleaner.Companion.create()'s own comment in the generated file
+      for the runtime guard itself.
+
+      Scoped to the generated uniffi/ path only, not disabled module-wide,
+      so NewApi checking still applies to this module's own hand-written
+      word-code pairing code.
+    -->
+    <issue id="NewApi">
+        <ignore path="**/uniffi/**" />
+    </issue>
+</lint>

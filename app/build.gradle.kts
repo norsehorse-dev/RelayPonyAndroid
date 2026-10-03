@@ -24,6 +24,8 @@ android {
             minorApiLevel = 1
         }
     }
+    // One pinned NDK for AGP and scripts/build-pake.sh, read from gradle.properties.
+    ndkVersion = providers.gradleProperty("ndkVersion").get()
 
     defaultConfig {
         applicationId = "com.relaypony.android"
@@ -37,6 +39,21 @@ android {
         // work merged in here, plus TV support and the other fixes on top.
         versionCode = 12
         versionName = "3.0.1"
+
+        ndk {
+            // 4.0 ships a native library for the first time (RelayPonyPake, word-code pairing),
+            // built for exactly these ABIs by scripts/build-pake.sh. Restrict the APK to them so
+            // JNA's jnidispatch and AndroidX don't add ABIs with no RelayPonyPake (an install on
+            // one of those couldn't load it, and F-Droid flags mismatched per-ABI libraries).
+            abiFilters.addAll(listOf("arm64-v8a", "armeabi-v7a", "x86_64"))
+        }
+    }
+
+    // Reproducible builds: keep the git commit and the Play dependency manifest out of the APK,
+    // as PassPonyAndroid does, so two builds of the same source match byte for byte.
+    dependenciesInfo {
+        includeInApk = false
+        includeInBundle = false
     }
 
     signingConfigs {
@@ -61,6 +78,7 @@ android {
 
     buildTypes {
         release {
+            vcsInfo.include = false
             isMinifyEnabled = false
             // Only attach the signing config when a keystore is present, so a keystore-less
             // build (clone/CI) configures cleanly and produces an unsigned release instead of
@@ -89,6 +107,7 @@ dependencies {
     implementation(project(":crypto"))
     implementation(project(":transport"))
     implementation(project(":session"))
+    implementation(project(":pake"))
 
     implementation(libs.zxing.core)
     implementation(libs.zxing.embedded)

@@ -10,9 +10,8 @@ import com.relaypony.session.FileNames
 import com.relaypony.session.FileSink
 import com.relaypony.session.OutgoingFile
 import com.relaypony.session.Session
+import com.relaypony.session.TransferLimits
 import com.relaypony.transport.SignalBlob
-import java.io.ByteArrayInputStream
-import java.io.ByteArrayOutputStream
 import java.io.File
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
@@ -50,7 +49,24 @@ class WanTransfer(
     private val isPinned: (String) -> Boolean,
     stunHost: String = "api.carrierpony.com",
     stunPort: Int = 3478,
+    /** Where inbound WAN transfers spool to disk before decoding. Ciphertext at rest. */
+    private val spoolDir: () -> File = { File(saveDir().parentFile ?: saveDir(), "wan-spool") },
+    /** Receive ceilings. :app passes free space for the inbox volume. */
+    private val limits: () -> TransferLimits = { TransferLimits.DEFAULT },
+    /** True once a peer has sent us a sealed blob (persisted by :app). Such a peer gets sealed
+     *  blobs only, and its plaintext RPS1 blobs are dropped as a downgrade. */
+    private val isSealedPeer: (String) -> Boolean = { false },
+    private val markSealedPeer: (String) -> Unit = {},
 ) {
+    companion object {
+        /**
+         * Largest WAN send. Sends stream from disk (4.0), so this is no longer a memory limit: it is
+         * the receiver's per-transfer ceiling, refused up front instead of after the receiver has
+         * spooled most of it.
+         */
+        const val MAX_WAN_SEND_BYTES: Long = TransferLimits.MAX_TRANSFER_BYTES
+    }
+
     data class ReceivedFileInfo(val name: String, val size: Long, val mime: String, val path: String)
     data class ReceivedBatch(
         val peerHandle: String,
@@ -72,13 +88,65 @@ class WanTransfer(
     /** A WAN receive completed; the app files these into its inbox. Posted to main. */
     var onReceived: (ReceivedBatch) -> Unit = {}
 
-    private val signaling = RelaySignaling(myHandle)
+    /**
+     * 4.0 private inboxes (PROTOCOL_v3.md section 5). The app implements these; the defaults keep
+     * 3.x behaviour (no inbox, handle addressing only). Called from background threads unless noted.
+     */
+    interface InboxHooks {
+        /** This device's inbox id, or null to not poll one (a 1.x relay without mailboxes). */
+        fun myInbox(): String? = null
+        /** The relay client for this device's own relay, used to poll [myInbox]. */
+        fun myRelayClient(): RelayClient? = null
+        /** A paired peer's inbox and relay, if known. */
+        fun route(peer: String): com.relaypony.session.pairing.PeerRoute? = null
+        /** A client for a normalized relay value ("" is the default relay). */
+        fun clientFor(relay: String): RelayClient? = null
+        /** The sealed announcement of this device's inbox for [peer], or null to skip. */
+        fun announcement(peer: String): ByteArray? = null
+        /** True once [peer] has been seen reaching this device through its inbox. */
+        fun peerUsesMyInbox(peer: String): Boolean = true
+        fun markPeerUsesMyInbox(peer: String) {}
+    }
 
-    private inner class SendJob(val blob: ByteArray) {
+    @Volatile var hooks: InboxHooks = object : InboxHooks {}
+
+    /**
+     * A sealed message from this device's inbox (or its handle queue) that isn't signaling: pairing
+     * requests and ACKs and inbox announcements, as plaintext lines. Posted to main. The app hands
+     * these to its PairingService.
+     */
+    var onInboxMessage: (String) -> Unit = {}
+
+    /** Keep polling while something other than a transfer needs the inbox (the pair sheet). */
+    @Volatile private var held = false
+
+    fun holdPolling(on: Boolean) {
+        held = on
+        if (on) startPolling() else main.post { stopPollingIfIdle() }
+    }
+
+    private val signaling = RelaySignaling(
+        myHandle,
+        sealer = { blob -> SealedSignal.seal(provider, blob, myScalar, myHandle) },
+        sealedPeer = isSealedPeer,
+        route = { peer -> hooks.route(peer) },
+        mboxSender = { relay, inbox, bytes ->
+            (hooks.clientFor(relay) ?: throw IllegalStateException("no relay client")).mboxSend(inbox, bytes)
+        },
+    )
+
+    /** One outgoing WAN transfer. The files are encrypted while they are sent, never ahead of time. */
+    private inner class SendJob(
+        val files: List<OutgoingFile>,
+        val senderName: String,
+        val senderHandle: String,
+    ) {
         var shipping = false
         var finished = false
         var fallback: Runnable? = null
         var relay: RelayStreamChannel? = null
+        /** Set when the job ends for any reason; the producer thread stops at its next write. */
+        @Volatile var cancelled = false
     }
 
     private inner class RecvJob {
@@ -92,8 +160,15 @@ class WanTransfer(
     private val recvJobs = HashMap<String, RecvJob>()
     private val sending = HashSet<String>()
 
-    // Written on PonyDirect's exec thread, drained on main at completion.
-    private val recvBuffers = ConcurrentHashMap<String, ByteArrayOutputStream>()
+    // Written on PonyDirect's exec thread, handed to main at completion. One disk spool per peer
+    // (4.0: replaces the 3.0 in-memory buffer). A peer lands in [abortedRecv] when its spool hits
+    // a ceiling, so the rest of that stream is dropped until it completes.
+    private val recvSpools = ConcurrentHashMap<String, WanSpool>()
+    private val abortedRecv: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    init {
+        WanSpool.sweep(spoolDir())
+    }
 
     private val polling = AtomicBoolean(false)
     private var pollThread: Thread? = null
@@ -110,11 +185,25 @@ class WanTransfer(
             }
             override fun onPayload(peerID: String, payload: ByteArray) {}
             override fun onStreamBytes(peerID: String, bytes: ByteArray) {
-                recvBuffers.getOrPut(peerID) { ByteArrayOutputStream() }.write(bytes)
+                if (peerID in abortedRecv) return
+                try {
+                    val spool = recvSpools.getOrPut(peerID) { WanSpool.create(spoolDir(), limits()) }
+                    spool.write(bytes)
+                } catch (t: Throwable) {
+                    abortedRecv.add(peerID)
+                    recvSpools.remove(peerID)?.discard()
+                    main.post { abortReceive(peerID, t) }
+                }
             }
             override fun onStreamReceiveComplete(peerID: String) {
-                val data = recvBuffers.remove(peerID)?.toByteArray() ?: ByteArray(0)
-                main.post { finishReceive(peerID, data) }
+                if (abortedRecv.remove(peerID)) return
+                val spool = recvSpools.remove(peerID)
+                    ?: runCatching { WanSpool.create(spoolDir(), limits()) }.getOrNull()
+                    ?: return
+                val file = runCatching { spool.finish() }.getOrElse { t ->
+                    spool.discard(); main.post { abortReceive(peerID, t) }; return
+                }
+                main.post { finishReceive(peerID, file) }
             }
             override fun onStreamSendComplete(peerID: String, success: Boolean) {
                 main.post { finishSend(peerID, success) }
@@ -151,34 +240,33 @@ class WanTransfer(
             onSendStatus(peerHandle, WanStatus(WanStatusKind.ADD_FILES))
             return
         }
-        onSendStatus(peerHandle, WanStatus(WanStatusKind.PREPARING))
+        val total = files.sumOf { it.size }
+        if (total > MAX_WAN_SEND_BYTES) {
+            onSendStatus(peerHandle, WanStatus(
+                WanStatusKind.PREPARE_FAILED,
+                arg = "over ${MAX_WAN_SEND_BYTES shr 30} GB, too large to send in one transfer",
+            ))
+            onSendFinished(peerHandle, false)
+            return
+        }
+        val recipientOk = runCatching { provider.recipientFromQr(peerHandle.toByteArray(Charsets.UTF_8)) }.isSuccess
+        if (!recipientOk) {
+            onSendStatus(peerHandle, WanStatus(WanStatusKind.PREPARE_FAILED, arg = "not a valid device key"))
+            onSendFinished(peerHandle, false)
+            return
+        }
         sending.add(peerHandle); onSendingChanged(sending.toSet())
-        Thread {
-            try {
-                val recipient = provider.recipientFromQr(peerHandle.toByteArray(Charsets.UTF_8))
-                val out = ByteArrayOutputStream()
-                // v1 monologue: one-directional, no reverse HELLO.
-                Session.send(provider, listOf(recipient), senderName, senderHandle, files, out, 1, null)
-                val blob = out.toByteArray()
-                main.post { beginSend(peerHandle, blob) }
-            } catch (t: Throwable) {
-                main.post {
-                    onSendStatus(peerHandle, WanStatus(WanStatusKind.PREPARE_FAILED, arg = t.message))
-                    sending.remove(peerHandle); onSendingChanged(sending.toSet())
-                    onSendFinished(peerHandle, false)
-                }
-            }
-        }.apply { isDaemon = true; start() }
+        beginSend(peerHandle, SendJob(files, senderName, senderHandle))
     }
 
     /** True while a WAN send to [peer] is in progress. */
     fun isSending(peer: String): Boolean = sendJobs.containsKey(peer)
 
-    private fun beginSend(peer: String, blob: ByteArray) {
-        val job = SendJob(blob)
+    private fun beginSend(peer: String, job: SendJob) {
         sendJobs[peer] = job
         onSendStatus(peer, WanStatus(WanStatusKind.CONNECTING))
         startPolling()
+        if (!hooks.peerUsesMyInbox(peer)) announceInbox(peer)
         // Clear any session left over from a previous transfer (send OR receive) so open()
         // builds a fresh initiator session instead of reusing a finished one — open() no-ops
         // when a session already exists.
@@ -202,8 +290,11 @@ class WanTransfer(
         job.fallback?.let { main.removeCallbacks(it) }
         onSendStatus(peer, WanStatus(WanStatusKind.SENDING))
         wan.openStream(peer)
-        wan.writeStream(job.blob, peer)
-        wan.finishStream(peer)
+        produce(peer, job,
+            write = { wan.writeStream(it, peer) },
+            buffered = { wan.streamSendBufferedBytes(peer) },
+            finish = { wan.finishStream(peer) },
+        )
     }
 
     private fun shipViaRelay(peer: String) {
@@ -212,16 +303,47 @@ class WanTransfer(
         val key = PonyPeerKeyProvider(myScalar, myHandle).pairKey(peer) ?: return
         job.shipping = true
         onSendStatus(peer, WanStatus(WanStatusKind.SENDING_RELAY))
-        val ch = RelayStreamChannel(key, myHandle, peer)
+        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer))
         ch.onSendComplete = { main.post { finishSend(peer, true) } }
         job.relay = ch
-        ch.send(job.blob)
+        produce(peer, job,
+            write = { ch.write(it) },
+            buffered = { ch.sendBufferedBytes() },
+            finish = { ch.finishSending() },
+        )
+    }
+
+    /**
+     * Encrypt [job]'s files into the chosen stream on a background thread, waiting on the stream's
+     * acknowledgements so memory stays bounded however large the files are (4.0). Any failure (a
+     * file that can't be read, a peer that stops acknowledging) ends the send as failed.
+     */
+    private fun produce(
+        peer: String,
+        job: SendJob,
+        write: (ByteArray) -> Unit,
+        buffered: () -> Long,
+        finish: () -> Unit,
+    ) {
+        Thread({
+            try {
+                val recipient = provider.recipientFromQr(peer.toByteArray(Charsets.UTF_8))
+                val out = BackpressureOutputStream(sink = write, buffered = buffered, cancelled = { job.cancelled })
+                // v1 monologue: one-directional, no reverse HELLO.
+                Session.send(provider, listOf(recipient), job.senderName, job.senderHandle, job.files, out, 1, null)
+                out.flush()
+                if (!job.cancelled) finish()
+            } catch (t: Throwable) {
+                if (!job.cancelled) main.post { finishSend(peer, false) }
+            }
+        }, "relaypony-wan-send").apply { isDaemon = true; start() }
     }
 
     private fun finishSend(peer: String, success: Boolean) {
         val job = sendJobs[peer] ?: return
         if (job.finished) return
         job.finished = true
+        job.cancelled = true
         job.fallback?.let { main.removeCallbacks(it) }
         job.relay?.stop()
         sendJobs.remove(peer)
@@ -239,34 +361,49 @@ class WanTransfer(
 
     // ---- Receive finalize ----
 
-    private fun finishReceive(peer: String, blob: ByteArray) {
+    private fun finishReceive(peer: String, spoolFile: File) {
         val rj = recvJobs[peer] ?: RecvJob().also { recvJobs[peer] = it }
-        if (rj.finished) return
+        if (rj.finished) { spoolFile.delete(); return }
         rj.finished = true
         rj.fallback?.let { main.removeCallbacks(it) }
         recvJobs.remove(peer)
-        decodeAndFile(peer, blob)
+        decodeAndFile(peer, spoolFile)
     }
 
-    private fun decodeAndFile(peer: String, blob: ByteArray) {
+    /** A spool hit a ceiling mid-stream: end this receive, drop the session, report it. */
+    private fun abortReceive(peer: String, t: Throwable) {
+        recvJobs.remove(peer)?.let { rj ->
+            rj.finished = true
+            rj.fallback?.let { main.removeCallbacks(it) }
+            rj.relay?.let { ch -> ch.stop(); ch.spool?.discard() }
+        }
+        wan.close(peer)
+        onReceiveStatus(WanStatus(WanStatusKind.RECEIVE_FAILED, arg = t.message))
+        stopPollingIfIdle()
+    }
+
+    private fun decodeAndFile(peer: String, spoolFile: File) {
         onReceiveStatus(WanStatus(WanStatusKind.RECEIVING))
         Thread {
+            val written = ArrayList<ReceivedFileInfo>()
             try {
                 val dir = saveDir().apply { mkdirs() }
-                val written = ArrayList<ReceivedFileInfo>()
-                val result = Session.receive(
-                    provider,
-                    identity,
-                    ByteArrayInputStream(blob),
-                    FileSink { entry: FileEntry ->
-                        val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
-                        written.add(ReceivedFileInfo(outFile.name, entry.size, entry.mime, outFile.absolutePath))
-                        outFile.outputStream()
-                    },
-                    null,
-                    deviceName,
-                    myHandle,
-                )
+                val result = spoolFile.inputStream().buffered(64 * 1024).use { input ->
+                    Session.receive(
+                        provider,
+                        identity,
+                        input,
+                        FileSink { entry: FileEntry ->
+                            val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
+                            written.add(ReceivedFileInfo(outFile.name, entry.size, entry.mime, outFile.absolutePath))
+                            outFile.outputStream()
+                        },
+                        null,
+                        deviceName,
+                        myHandle,
+                        limits = limits(),
+                    )
+                }
                 val batch = ReceivedBatch(peer, result.senderName, result.senderHandle, written)
                 main.post {
                     onReceived(batch)
@@ -274,10 +411,14 @@ class WanTransfer(
                     stopPollingIfIdle()
                 }
             } catch (t: Throwable) {
+                // Nothing from a failed or capped transfer reaches the inbox.
+                written.forEach { runCatching { File(it.path).delete() } }
                 main.post {
                     onReceiveStatus(WanStatus(WanStatusKind.RECEIVE_FAILED, arg = t.message))
                     stopPollingIfIdle()
                 }
+            } finally {
+                runCatching { spoolFile.delete() }
             }
         }.apply { isDaemon = true; start() }
     }
@@ -290,6 +431,12 @@ class WanTransfer(
             while (polling.get()) {
                 val blobs = signaling.poll()
                 if (blobs.isNotEmpty()) main.post { ingest(blobs) }
+                val h = hooks
+                val box = h.myInbox()
+                if (box != null) {
+                    val inboxed = runCatching { h.myRelayClient()?.mboxPoll(box) }.getOrNull().orEmpty()
+                    if (inboxed.isNotEmpty()) main.post { inboxed.forEach { handleSealed(it, viaInbox = true) } }
+                }
                 try { Thread.sleep(1500) } catch (e: InterruptedException) { break }
             }
         }.apply { isDaemon = true; start() }
@@ -298,17 +445,62 @@ class WanTransfer(
     /** Feed inbound blobs to the path, but only offers from *paired* peers; arm a per-peer
      *  relay-receive fallback the first time a paired peer reaches out. Runs on the main thread. */
     private fun ingest(blobs: List<String>) {
-        for (line in blobs) {
+        // Sealed blobs first, so a 4.0 peer is marked before its plaintext duplicate is looked at.
+        val (sealedLines, plainLines) = blobs.partition { it.startsWith(RelaySignaling.SEALED_LINE_PREFIX) }
+        for (line in sealedLines) {
+            val bytes = signaling.sealedPayload(line) ?: continue
+            handleSealed(bytes, viaInbox = false)
+        }
+        for (line in plainLines) {
             val b = runCatching { SignalBlob.decode(line) }.getOrNull() ?: continue
             if (b.to != myHandle || !isPinned(b.from)) continue     // trust gate
-            // First blob of a new incoming transfer (no live recv job): tear down any
-            // session left over from a previous one so the offer builds a fresh session.
-            if (!sendJobs.containsKey(b.from) && !recvJobs.containsKey(b.from)) {
-                wan.close(b.from)
-                ensureRecvJob(b.from)
-            }
-            runCatching { signaling.importBlob(line, wan) }
+            if (isSealedPeer(b.from)) continue                      // downgrade: this peer seals
+            accept(b)
         }
+    }
+
+    /**
+     * One sealed payload, from the handle queue or this device's inbox: open it, then dispatch on
+     * its plaintext prefix (PROTOCOL_v3.md section 6.1). Main thread.
+     */
+    private fun handleSealed(bytes: ByteArray, viaInbox: Boolean) {
+        val plain = runCatching { com.relaypony.session.pairing.PairMessages.open(provider, identity, bytes) }.getOrNull() ?: return
+        if (!plain.startsWith("${SealedSignal.PREFIX}|")) {
+            onInboxMessage(plain)
+            return
+        }
+        // parse() authenticates `from` with the signal MAC, so the trust gate checks a proven
+        // sender, not a claimed one.
+        val b = runCatching { SealedSignal.parse(plain, myScalar, myHandle) }.getOrNull() ?: return
+        if (!isPinned(b.from)) return                               // trust gate
+        if (!isSealedPeer(b.from)) markSealedPeer(b.from)
+        val h = hooks
+        if (viaInbox) {
+            h.markPeerUsesMyInbox(b.from)
+        } else if (!h.peerUsesMyInbox(b.from) && !sendJobs.containsKey(b.from) && !recvJobs.containsKey(b.from)) {
+            announceInbox(b.from)   // a 4.0 peer still reaching us by handle: tell it our inbox
+        }
+        accept(b)
+    }
+
+    /** The relay [peer] polls: its route's relay when known, else this device's own. */
+    private fun peerRelayBase(peer: String): String =
+        hooks.route(peer)?.let { RelayUrls.base(it.relay) } ?: RelayConfig.baseUrl
+
+    /** Send this device's inbox announcement to [peer] in the background (section 5.3). */
+    private fun announceInbox(peer: String) {
+        val sealed = hooks.announcement(peer) ?: return
+        Thread { runCatching { signaling.sendRaw(peer, sealed) } }.apply { isDaemon = true; start() }
+    }
+
+    private fun accept(b: SignalBlob) {
+        // First blob of a new incoming transfer (no live recv job): tear down any
+        // session left over from a previous one so the offer builds a fresh session.
+        if (!sendJobs.containsKey(b.from) && !recvJobs.containsKey(b.from)) {
+            wan.close(b.from)
+            ensureRecvJob(b.from)
+        }
+        runCatching { signaling.importSignal(b, wan) }
     }
 
     private fun ensureRecvJob(peer: String) {
@@ -328,14 +520,20 @@ class WanTransfer(
         if (rj.relay != null) return
         val key = PonyPeerKeyProvider(myScalar, myHandle).pairKey(peer) ?: return
         onReceiveStatus(WanStatus(WanStatusKind.RECEIVING_RELAY))
-        val ch = RelayStreamChannel(key, myHandle, peer)
-        ch.onComplete = { data ->
+        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer))
+        val spool = runCatching { WanSpool.create(spoolDir(), limits()) }.getOrNull() ?: return
+        ch.spool = spool
+        ch.onFailed = { t -> spool.discard(); abortReceive(peer, t) }
+        ch.onComplete = { _ ->
             main.post {
                 val j = recvJobs[peer]
                 if (j != null && !j.finished) {
                     j.finished = true
                     recvJobs.remove(peer)
-                    decodeAndFile(peer, data)
+                    val file = runCatching { spool.finish() }.getOrNull()
+                    if (file != null) decodeAndFile(peer, file) else spool.discard()
+                } else {
+                    spool.discard()
                 }
             }
         }
@@ -344,7 +542,7 @@ class WanTransfer(
     }
 
     private fun stopPollingIfIdle() {
-        if (receiveActive || sendJobs.isNotEmpty() || recvJobs.isNotEmpty()) return
+        if (held || receiveActive || sendJobs.isNotEmpty() || recvJobs.isNotEmpty()) return
         polling.set(false)
         pollThread?.interrupt()
         pollThread = null
@@ -356,7 +554,7 @@ class WanTransfer(
         polling.set(false)
         pollThread?.interrupt()
         pollThread = null
-        sendJobs.values.forEach { it.relay?.stop() }
+        sendJobs.values.forEach { it.cancelled = true; it.relay?.stop() }
         recvJobs.values.forEach { it.relay?.stop() }
     }
 

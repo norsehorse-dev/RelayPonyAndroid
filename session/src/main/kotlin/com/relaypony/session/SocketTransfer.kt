@@ -3,6 +3,7 @@ package com.relaypony.session
 import com.relaypony.crypto.CryptoProvider
 import com.relaypony.crypto.Identity
 import com.relaypony.crypto.Recipient
+import com.relaypony.transport.WireProtocol
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
 import java.net.InetSocketAddress
@@ -26,6 +27,7 @@ object SocketTransfer {
         deviceName: String = "",
         recipientHandle: String = "",
         onProgress: ((Long, Long) -> Unit)? = null,
+        limits: TransferLimits = TransferLimits.DEFAULT,
         sink: FileSink,
     ): ReceiveResult {
         server.accept().use { socket ->
@@ -37,9 +39,66 @@ object SocketTransfer {
                 deviceName = deviceName,
                 recipientHandle = recipientHandle,
                 onProgress = onProgress,
+                limits = limits,
             )
         }
     }
+
+    /**
+     * Accept one inbound connection on [server] and handle whichever kind it is (4.0). A connection
+     * whose first frame is [WireProtocol.PAIR] carries one sealed pairing message: it is handed to
+     * [onPair] and the connection closes, returning null. Anything else is a transfer session,
+     * received exactly as [receiveOnceFrom] does.
+     *
+     * The first frame must arrive within [firstFrameTimeoutMs]; after that the session runs with no
+     * read timeout, as in 3.x. Without it, one idle connection would hold the single accept loop.
+     * A connection that stays silent that long is closed and returns null, like one that connects
+     * and leaves: neither is a failed transfer worth reporting.
+     */
+    fun acceptOne(
+        server: ServerSocket,
+        provider: CryptoProvider,
+        identity: Identity,
+        onPair: (ByteArray) -> Unit,
+        deviceName: String = "",
+        recipientHandle: String = "",
+        onProgress: ((Long, Long) -> Unit)? = null,
+        limits: TransferLimits = TransferLimits.DEFAULT,
+        firstFrameTimeoutMs: Int = FIRST_FRAME_TIMEOUT_MS,
+        sink: FileSink,
+    ): ReceiveResult? {
+        server.accept().use { socket ->
+            socket.soTimeout = firstFrameTimeoutMs
+            val input = BufferedInputStream(socket.getInputStream())
+            input.mark(1)
+            val type = try {
+                input.read()
+            } catch (e: java.net.SocketTimeoutException) {
+                return null                                         // never said anything
+            }
+            if (type < 0) return null                               // connected and left
+            input.reset()
+            if (type.toByte() == WireProtocol.PAIR) {
+                // A bad PAIR frame (oversized, truncated, too slow) is dropped quietly: pairing has
+                // the relay copy to fall back on, and it is no reason to report a failed transfer.
+                val frame = runCatching { WireProtocol.readFrame(input) }.getOrNull() ?: return null
+                onPair(frame.payload)
+                return null
+            }
+            socket.soTimeout = 0
+            val reverseOut = BufferedOutputStream(socket.getOutputStream())
+            return Session.receive(
+                provider, identity, input, sink,
+                reverseOut = reverseOut,
+                deviceName = deviceName,
+                recipientHandle = recipientHandle,
+                onProgress = onProgress,
+                limits = limits,
+            )
+        }
+    }
+
+    const val FIRST_FRAME_TIMEOUT_MS = 30_000
 
     /** Connect to [host]:[port] and send the given files. */
     fun sendTo(

@@ -30,6 +30,8 @@ class NsdDiscovery(context: Context) {
         val recipientHandle: String,
         /** Highest wire version the peer advertised ("mw"); 1 when absent (any older build). */
         val maxWire: Int = 1,
+        /** The peer accepts a PAIR frame ("pr" = "1", 4.0). False for any 3.x build. */
+        val pairCapable: Boolean = false,
     )
 
     private val appContext = context.applicationContext
@@ -41,7 +43,7 @@ class NsdDiscovery(context: Context) {
     private var registrationListener: NsdManager.RegistrationListener? = null
     private var discoveryListener: NsdManager.DiscoveryListener? = null
 
-    fun advertise(serviceName: String, port: Int, deviceName: String, recipientHandle: String) {
+    fun advertise(serviceName: String, port: Int, deviceName: String, recipientHandle: String, pairCapable: Boolean = false) {
         val info = NsdServiceInfo().apply {
             this.serviceName = serviceName
             serviceType = SERVICE_TYPE
@@ -50,6 +52,7 @@ class NsdDiscovery(context: Context) {
             setAttribute("rcpt", recipientHandle)
             // The version this build actually speaks — honest by construction; flips with WIRE_VERSION.
             setAttribute(WireProtocol.MW_KEY, WireProtocol.MAX_WIRE_VERSION.toString())
+            if (pairCapable) setAttribute(WireProtocol.PR_KEY, "1")
         }
         val listener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(info: NsdServiceInfo) {}
@@ -62,6 +65,10 @@ class NsdDiscovery(context: Context) {
     }
 
     fun startDiscovery(onPeer: (Peer) -> Unit) {
+        // One browse at a time: a second call (the pair sheet and the Send tab both browse) replaces
+        // the first instead of leaking a listener NsdManager would keep calling.
+        discoveryListener?.let { runCatching { nsd.stopServiceDiscovery(it) } }
+        discoveryListener = null
         acquireMulticastLock()
         val listener = object : NsdManager.DiscoveryListener {
             override fun onDiscoveryStarted(serviceType: String) {}
@@ -89,10 +96,20 @@ class NsdDiscovery(context: Context) {
                 val host = resolved.host?.hostAddress ?: return
                 val name = attrs["name"]?.toString(Charsets.UTF_8) ?: resolved.serviceName
                 val maxWire = WireProtocol.parseMaxWire(attrs[WireProtocol.MW_KEY]?.toString(Charsets.UTF_8))
-                main.post { onPeer(Peer(name, host, resolved.port, rcpt, maxWire)) }
+                val pr = attrs[WireProtocol.PR_KEY]?.toString(Charsets.UTF_8) == "1"
+                main.post { onPeer(Peer(name, host, resolved.port, rcpt, maxWire, pr)) }
             }
         })
     }
+
+    /** Stop browsing only, leaving this device's own advertisement registered. */
+    fun stopDiscovery() {
+        discoveryListener?.let { runCatching { nsd.stopServiceDiscovery(it) } }
+        discoveryListener = null
+        if (registrationListener == null) releaseMulticastLock()
+    }
+
+    val isDiscovering: Boolean get() = discoveryListener != null
 
     /** Stop advertising only (used when pausing the receiver), leaving discovery untouched. */
     fun stopAdvertising() {

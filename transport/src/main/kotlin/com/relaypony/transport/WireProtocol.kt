@@ -47,8 +47,47 @@ object WireProtocol {
     const val ACK: Byte = 0x06       // reserved for the bidirectional flow in Phase 3
     const val DONE: Byte = 0x07
 
+    /**
+     * 4.0: a one-shot pairing message (PROTOCOL_v3 section 4.5). A connection whose first frame is
+     * PAIR carries exactly one sealed PAIR_REQ or PAIR_ACK and is then closed; it never starts a
+     * session. Only sent to a peer advertising [PR_KEY] / [Beacon.FLAG_PAIR], so a 3.x listener,
+     * which would reject it as "expected HELLO", never sees one.
+     */
+    const val PAIR: Byte = 0x08
+
+    /** Largest PAIR payload. Both pairing messages are age files well under this. */
+    const val MAX_PAIR_PAYLOAD: Int = 16 * 1024
+
+    /**
+     * Largest payload accepted for any frame except MANIFEST (audit 2.1). The declared length is
+     * checked before anything is allocated, so a peer can no longer make the receiver allocate
+     * whatever a 4-byte length says. Senders emit FILE_CHUNK at 64 KiB, so 1 MiB leaves headroom
+     * for other implementations without letting one frame become a memory hazard.
+     */
+    const val MAX_FRAME_PAYLOAD: Int = 1 shl 20
+
+    /**
+     * Largest MANIFEST payload. The manifest grows with the file count (roughly 100-150 bytes per
+     * entry once age-encrypted), so it gets its own, larger ceiling to fit
+     * [MAX_MANIFEST_ENTRIES]-sized group sends.
+     */
+    const val MAX_MANIFEST_PAYLOAD: Int = 4 shl 20
+
+    /** Most files one manifest may list. Enforced by the session layer after decrypting it. */
+    const val MAX_MANIFEST_ENTRIES: Int = 10_000
+
+    /** The payload ceiling for a frame of [type]. */
+    fun maxPayloadFor(type: Byte): Int = when (type) {
+        MANIFEST -> MAX_MANIFEST_PAYLOAD
+        PAIR -> MAX_PAIR_PAYLOAD
+        else -> MAX_FRAME_PAYLOAD
+    }
+
     /** Discovery TXT key for the highest wire version a build speaks (wire v2 prep). */
     const val MW_KEY = "mw"
+
+    /** Discovery TXT key, value "1": this listener accepts a [PAIR] frame (4.0). */
+    const val PR_KEY = "pr"
 
     /**
      * Parse a peer's advertised max wire version from the discovery TXT record. Absent or
@@ -72,6 +111,8 @@ object WireProtocol {
     )
 
     fun writeFrame(out: OutputStream, type: Byte, payload: ByteArray) {
+        val max = maxPayloadFor(type)
+        if (payload.size > max) throw WireException("refusing to send a ${payload.size}-byte frame (limit $max for type $type)")
         out.write(type.toInt() and 0xff)
         writeU32(out, payload.size)
         out.write(payload)
@@ -82,9 +123,13 @@ object WireProtocol {
         val t = input.read()
         if (t < 0) return null
         val len = readU32(input)
+        val type = t.toByte()
+        if (len < 0) throw WireException("frame length out of range")
+        val max = maxPayloadFor(type)
+        if (len > max) throw WireException("frame too large: $len bytes (limit $max for type $type)")
         val payload = readFully(input, len)
         if (payload.size != len) throw WireException("truncated frame: wanted $len, got ${payload.size}")
-        return Frame(t.toByte(), payload)
+        return Frame(type, payload)
     }
 
     fun writeHello(out: OutputStream, schemeId: Byte, deviceName: String, recipientHandle: String) {
@@ -175,6 +220,8 @@ object WireProtocol {
         out.write(v and 0xff)
     }
 
+    /** Reads a big-endian u32. A value of 2^31 or more comes back negative; [readFrame] rejects
+     *  that before allocating, so callers must range-check the result. */
     private fun readU32(input: InputStream): Int {
         val b = readFully(input, 4)
         if (b.size != 4) throw WireException("EOF reading frame length")

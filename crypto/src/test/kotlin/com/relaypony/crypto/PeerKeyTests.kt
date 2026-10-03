@@ -41,6 +41,21 @@ class PeerKeyTests {
         assertArrayEquals(expectedK, PeerKey.deriveFromHandles(scalarA, handleA, handleB))
     }
 
+    /** 4.0 signal MAC key: same inputs, info "relaypony/signal/mac/v1". Mirror in iOS. */
+    private val expectedSigK = hex("385e6c82479be53c8949219b58949684e2b815f6dc96ee8010b7a18088bab9fb")
+
+    @Test
+    fun signalMacKey_matchesCrossPlatformVector() {
+        assertArrayEquals(expectedSigK, PeerKey.deriveFromHandles(scalarA, handleA, handleB, PeerKey.SIGNAL_MAC_INFO))
+        assertArrayEquals(expectedSigK, PeerKey.deriveFromHandles(scalarB, handleB, handleA, PeerKey.SIGNAL_MAC_INFO))
+    }
+
+    @Test
+    fun signalMacKey_isIndependentOfPonyDirectKey() {
+        val sig = PeerKey.deriveFromHandles(scalarA, handleA, handleB, PeerKey.SIGNAL_MAC_INFO)
+        org.junit.jupiter.api.Assertions.assertFalse(sig.contentEquals(expectedK))
+    }
+
     @Test
     fun rejectsWrongScalarSize() {
         assertThrows(IllegalArgumentException::class.java) {

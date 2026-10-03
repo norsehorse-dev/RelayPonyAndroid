@@ -36,6 +36,8 @@ class BeaconDiscovery {
         val maxWire: Int = 1,
         /** The interface this peer was heard on — useful for diagnostics and for choosing a route. */
         val via: String = "",
+        /** The peer accepts a PAIR frame (4.0, [Beacon.FLAG_PAIR]). */
+        val pairCapable: Boolean = false,
     )
 
     private class Advert(
@@ -43,6 +45,7 @@ class BeaconDiscovery {
         val deviceName: String,
         val handle: String,
         val maxWire: Int,
+        val flags: Int,
     )
 
     @Volatile private var advert: Advert? = null
@@ -110,8 +113,9 @@ class BeaconDiscovery {
         deviceName: String,
         recipientHandle: String,
         maxWire: Int = WireProtocol.WIRE_VERSION,
+        pairCapable: Boolean = false,
     ) {
-        advert = Advert(tcpPort, deviceName, recipientHandle, maxWire)
+        advert = Advert(tcpPort, deviceName, recipientHandle, maxWire, if (pairCapable) Beacon.FLAG_PAIR else 0)
         selfHandle = recipientHandle
         broadcastAnnounce()                                        // don't make anyone wait a tick
     }
@@ -175,7 +179,7 @@ class BeaconDiscovery {
         val a = advert ?: return                                   // not receiving: stay quiet
         if (port <= 0) return
         val frame = runCatching {
-            Beacon.encodeAnnounce(a.tcpPort, a.maxWire, a.deviceName, a.handle)
+            Beacon.encodeAnnounce(a.tcpPort, a.maxWire, a.deviceName, a.handle, a.flags)
         }.getOrNull() ?: return
         val sock = listener ?: return
         runCatching { sock.send(DatagramPacket(frame, frame.size, address, port)) }
@@ -184,7 +188,7 @@ class BeaconDiscovery {
     private fun broadcastAnnounce() {
         val a = advert ?: return
         val frame = runCatching {
-            Beacon.encodeAnnounce(a.tcpPort, a.maxWire, a.deviceName, a.handle)
+            Beacon.encodeAnnounce(a.tcpPort, a.maxWire, a.deviceName, a.handle, a.flags)
         }.getOrNull() ?: return
         for (endpoint in LocalInterfaces.endpoints()) {
             val sock = runCatching {
@@ -217,7 +221,7 @@ class BeaconDiscovery {
     private fun emit(msg: Beacon.Message.Announce, from: InetAddress, via: String, onPeer: (Peer) -> Unit) {
         if (msg.recipientHandle == selfHandle) return              // that's us
         val host = from.hostAddress ?: return
-        onPeer(Peer(msg.deviceName, host, msg.tcpPort, msg.recipientHandle, msg.maxWire, via))
+        onPeer(Peer(msg.deviceName, host, msg.tcpPort, msg.recipientHandle, msg.maxWire, via, msg.pairCapable))
     }
 
     @Synchronized

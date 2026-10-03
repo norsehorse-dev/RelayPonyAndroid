@@ -23,6 +23,64 @@ class WireCodecTests {
     }
 
     @Test
+    fun readFrame_rejectsOversizedLengthBeforeAllocating() {
+        val over = WireProtocol.MAX_FRAME_PAYLOAD + 1
+        val bytes = byteArrayOf(
+            WireProtocol.FILE_CHUNK,
+            (over ushr 24).toByte(), (over ushr 16).toByte(), (over ushr 8).toByte(), over.toByte(),
+        )
+        assertThrows(WireProtocol.WireException::class.java) {
+            WireProtocol.readFrame(ByteArrayInputStream(bytes))
+        }
+    }
+
+    @Test
+    fun readFrame_rejectsNegativeLength() {
+        // 0xFFFFFFFF reads back as -1 through a signed Int.
+        val bytes = byteArrayOf(WireProtocol.FILE_CHUNK, -1, -1, -1, -1)
+        assertThrows(WireProtocol.WireException::class.java) {
+            WireProtocol.readFrame(ByteArrayInputStream(bytes))
+        }
+        val bytes2 = byteArrayOf(WireProtocol.MANIFEST, 0x80.toByte(), 0, 0, 0)
+        assertThrows(WireProtocol.WireException::class.java) {
+            WireProtocol.readFrame(ByteArrayInputStream(bytes2))
+        }
+    }
+
+    @Test
+    fun readFrame_acceptsExactlyTheCap() {
+        val out = ByteArrayOutputStream()
+        WireProtocol.writeFrame(out, WireProtocol.FILE_CHUNK, ByteArray(WireProtocol.MAX_FRAME_PAYLOAD))
+        val frame = WireProtocol.readFrame(ByteArrayInputStream(out.toByteArray()))!!
+        assertEquals(WireProtocol.MAX_FRAME_PAYLOAD, frame.payload.size)
+    }
+
+    @Test
+    fun manifest_getsTheLargerCap() {
+        val size = WireProtocol.MAX_FRAME_PAYLOAD + 1
+        val out = ByteArrayOutputStream()
+        WireProtocol.writeFrame(out, WireProtocol.MANIFEST, ByteArray(size))
+        val frame = WireProtocol.readFrame(ByteArrayInputStream(out.toByteArray()))!!
+        assertEquals(size, frame.payload.size)
+
+        val over = WireProtocol.MAX_MANIFEST_PAYLOAD + 1
+        val bytes = byteArrayOf(
+            WireProtocol.MANIFEST,
+            (over ushr 24).toByte(), (over ushr 16).toByte(), (over ushr 8).toByte(), over.toByte(),
+        )
+        assertThrows(WireProtocol.WireException::class.java) {
+            WireProtocol.readFrame(ByteArrayInputStream(bytes))
+        }
+    }
+
+    @Test
+    fun writeFrame_refusesOversizedPayload() {
+        assertThrows(WireProtocol.WireException::class.java) {
+            WireProtocol.writeFrame(ByteArrayOutputStream(), WireProtocol.FILE_CHUNK, ByteArray(WireProtocol.MAX_FRAME_PAYLOAD + 1))
+        }
+    }
+
+    @Test
     fun readFrame_returnsNullAtEof() {
         assertNull(WireProtocol.readFrame(ByteArrayInputStream(ByteArray(0))))
     }

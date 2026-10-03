@@ -26,6 +26,33 @@ class BeaconCodecTests {
     }
 
     @Test
+    fun pairFlag_roundTrips_andIsAbsentByDefault() {
+        val plain = Beacon.decode(Beacon.encodeAnnounce(1, 2, "a", "age1abcdef")) as Beacon.Message.Announce
+        assertEquals(0, plain.flags)
+        assertTrue(!plain.pairCapable)
+        val flagged = Beacon.decode(Beacon.encodeAnnounce(1, 2, "a", "age1abcdef", Beacon.FLAG_PAIR)) as Beacon.Message.Announce
+        assertTrue(flagged.pairCapable)
+        assertEquals("age1abcdef", flagged.recipientHandle)
+    }
+
+    @Test
+    fun noFlags_isByteIdenticalTo3x() {
+        // A 4.0 build that doesn't accept PAIR (or the desktop) must announce exactly as 3.x did.
+        val frame = Beacon.encodeAnnounce(45789, 2, "phone", "age1abcdef")
+        assertEquals(4 + 1 + 2 + 1 + 2 + 5 + 2 + 10, frame.size)
+    }
+
+    @Test
+    fun flagsByte_isPastWhereA3xDecoderStops() {
+        // 3.x reads the handle and stops; the flags byte must sit after it so 3.x sees the same
+        // name, handle and port it always did.
+        val withFlag = Beacon.encodeAnnounce(45789, 2, "phone", "age1abcdef", Beacon.FLAG_PAIR)
+        val without = Beacon.encodeAnnounce(45789, 2, "phone", "age1abcdef")
+        assertEquals(without.size + 1, withFlag.size)
+        assertTrue(withFlag.copyOf(without.size).contentEquals(without))
+    }
+
+    @Test
     fun probe_roundTrips() {
         assertTrue(Beacon.decode(Beacon.encodeProbe()) is Beacon.Message.Probe)
     }

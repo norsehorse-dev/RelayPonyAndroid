@@ -4,3 +4,6 @@
 [submodule "PonyDirect-Kotlin"]
 	path = PonyDirect-Kotlin
 	url = https://github.com/norsehorse-dev/PonyDirect-Kotlin.git
+[submodule "RelayPonyPake"]
+	path = RelayPonyPake
+	url = https://github.com/norsehorse-dev/RelayPonyPake.git

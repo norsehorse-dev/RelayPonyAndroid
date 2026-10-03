@@ -10,6 +10,8 @@ import java.io.ByteArrayOutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
+import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.atomic.AtomicLong
 
 /**
  * Relay-forward fallback for the reliable stream: used ONLY when a direct hole-punch is impossible
@@ -25,19 +27,34 @@ class RelayStreamChannel(
     private val selfHandle: String,
     private val peerHandle: String,
     baseUrl: String = RelayConfig.baseUrl,
+    /** 4.0: the relay the PEER polls. Datagrams go there; this side fetches from [baseUrl]. Lets two
+     *  devices on different relays still use the fallback. Defaults to the same relay (3.x). */
+    peerBaseUrl: String = baseUrl,
 ) {
     var onProgress: (Int) -> Unit = {}
     var onComplete: (ByteArray) -> Unit = {}
     var onSendComplete: () -> Unit = {}
+    /** The receive was cut off because the spool hit a ceiling. Posted to main. */
+    var onFailed: (Throwable) -> Unit = {}
+
+    /** When set, received bytes go to this disk spool instead of memory (4.0), and [onComplete]
+     *  is called with an empty array; the caller reads the spool. */
+    @Volatile var spool: WanSpool? = null
 
     private val endpoint = "${baseUrl.trimEnd('/')}/api/signal"
+    private val peerEndpoint = "${peerBaseUrl.trimEnd('/')}/api/signal"
     private val main = Handler(Looper.getMainLooper())
     private val sessionHex: String
     private val outbuf = ArrayList<ByteArray>()          // touched only on the loop thread
     private val engine: PonyDirectStreamEngine
     private val recvBuffer = ByteArrayOutputStream()
     @Volatile private var running = false
-    @Volatile private var pending: ByteArray? = null
+    // Outbound bytes from a streaming writer (4.0), handed to the engine on the loop thread.
+    private val outQueue = ConcurrentLinkedQueue<ByteArray>()
+    private val queuedBytes = AtomicLong()
+    @Volatile private var finishRequested = false
+    private var finCalled = false
+    @Volatile private var engineHeld = 0L
     private var recvDone = false
     private var sendDone = false
     private var thread: Thread? = null
@@ -53,7 +70,21 @@ class RelayStreamChannel(
         engine = PonyDirectStreamEngine(pairKey, nonce) { d -> outbuf.add(d) }
     }
 
-    fun send(data: ByteArray) { pending = data; start() }
+    /** Send [data] as the whole stream (3.x style). */
+    fun send(data: ByteArray) { write(data); finishSending() }
+
+    /** Append to the outbound stream. Returns at once; see [sendBufferedBytes] for backpressure. */
+    fun write(bytes: ByteArray) {
+        queuedBytes.addAndGet(bytes.size.toLong())
+        outQueue.add(bytes)
+        start()
+    }
+
+    /** End the outbound stream once everything written so far is sent. */
+    fun finishSending() { finishRequested = true; start() }
+
+    /** Outbound bytes not yet acknowledged, including ones not yet handed to the engine. */
+    fun sendBufferedBytes(): Long = queuedBytes.get() + engineHeld
 
     fun start() {
         if (running) return
@@ -67,7 +98,12 @@ class RelayStreamChannel(
 
     private fun loop() {
         while (running) {
-            pending?.let { engine.write(it); engine.finishSending(); pending = null }
+            while (true) {
+                val b = outQueue.poll() ?: break
+                engine.write(b)
+                queuedBytes.addAndGet(-b.size.toLong())
+            }
+            if (finishRequested && !finCalled && outQueue.isEmpty()) { engine.finishSending(); finCalled = true }
             engine.tick(now())
             if (outbuf.isNotEmpty()) {
                 val all = outbuf.map { Base64.encodeToString(it, Base64.NO_WRAP) }
@@ -82,8 +118,24 @@ class RelayStreamChannel(
                 runCatching { Base64.decode(c, Base64.NO_WRAP) }.getOrNull()?.let { engine.onWireDatagram(now(), it) }
             }
             val r = engine.read(1 shl 20)
-            if (r.isNotEmpty()) { recvBuffer.write(r); val n = recvBuffer.size(); main.post { onProgress(n) } }
+            if (r.isNotEmpty()) {
+                val sp = spool
+                if (sp != null) {
+                    try {
+                        sp.write(r)
+                    } catch (t: Throwable) {
+                        running = false
+                        main.post { onFailed(t) }
+                        break
+                    }
+                    val n = sp.size.coerceAtMost(Int.MAX_VALUE.toLong()).toInt()
+                    main.post { onProgress(n) }
+                } else {
+                    recvBuffer.write(r); val n = recvBuffer.size(); main.post { onProgress(n) }
+                }
+            }
             if (!recvDone && engine.recvComplete()) { recvDone = true; val full = recvBuffer.toByteArray(); main.post { onComplete(full) } }
+            engineHeld = engine.sendBufferedBytes()
             if (!sendDone && engine.sendComplete()) { sendDone = true; main.post { onSendComplete() } }
             if (recvDone && sendDone) running = false
             try { Thread.sleep(60) } catch (e: InterruptedException) { break }
@@ -92,7 +144,7 @@ class RelayStreamChannel(
 
     private fun postData(batch: List<String>) {
         val arr = JSONArray(); batch.forEach { arr.put(it) }
-        post(JSONObject().put("op", "data").put("to", peerHandle).put("session", sessionHex).put("chunks", arr).toString())
+        post(JSONObject().put("op", "data").put("to", peerHandle).put("session", sessionHex).put("chunks", arr).toString(), peerEndpoint)
     }
 
     private fun fetchData(): List<String> {
@@ -104,8 +156,8 @@ class RelayStreamChannel(
         }.getOrDefault(emptyList())
     }
 
-    private fun post(body: String): String? = runCatching {
-        val conn = (URL(endpoint).openConnection() as HttpURLConnection).apply {
+    private fun post(body: String, url: String = endpoint): String? = runCatching {
+        val conn = (URL(url).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"; connectTimeout = 8000; readTimeout = 12000; doOutput = true
             setRequestProperty("Content-Type", "application/json")
         }

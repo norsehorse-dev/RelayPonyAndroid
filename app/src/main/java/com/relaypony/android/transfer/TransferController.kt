@@ -29,6 +29,7 @@ import com.relaypony.android.R
 import com.relaypony.crypto.AgeProvider
 import com.relaypony.session.FanOut
 import com.relaypony.session.FileNames
+import com.relaypony.session.TransferLimits
 import com.relaypony.session.IdentityBackup
 import com.relaypony.session.OutgoingFile
 import com.relaypony.session.Ident
@@ -41,6 +42,14 @@ import java.util.Locale
 import com.relaypony.session.pairing.QrPayload
 import com.relaypony.transport.Beacon
 import com.relaypony.session.wan.RelayConfig
+import com.relaypony.session.wan.RelayUrls
+import com.relaypony.session.wan.RelayClient
+import com.relaypony.session.pairing.PeerRoute
+import com.relaypony.session.pairing.PakeDetails
+import com.relaypony.pake.WordCodePairing
+import com.relaypony.session.pairing.LanPair
+import com.relaypony.session.pairing.PairingService
+import com.relaypony.session.pairing.InboxIds
 import com.relaypony.session.wan.WanTransfer
 import com.relaypony.session.wan.WanStatus
 import com.relaypony.session.wan.WanStatusKind
@@ -71,6 +80,13 @@ class TransferController(context: Context) {
     private val inboxStore = PrefsInboxStore(appContext)
     private val settings = appContext.getSharedPreferences("relaypony_settings", Context.MODE_PRIVATE)
 
+    /** Peers seen sending sealed (4.0) WAN signaling. They get sealed blobs only, and plaintext
+     *  blobs claiming to be from them are dropped. Kept apart from the trust store so the pinned
+     *  model and its backups don't change. */
+    private val sealedPeers = appContext.getSharedPreferences("relaypony_sealed_peers", Context.MODE_PRIVATE)
+    private fun isSealedPeer(handle: String): Boolean = sealedPeers.getBoolean(handle, false)
+    private fun markSealedPeer(handle: String) { sealedPeers.edit().putBoolean(handle, true).apply() }
+
     /** WAN-direct relay base URL (self-host override), persisted across launches. */
     var relayServer: String
         get() = settings.getString("relay_server", null)?.takeIf { it.isNotEmpty() } ?: "https://relaypony.app"
@@ -78,6 +94,12 @@ class TransferController(context: Context) {
             val v = value.trim()
             settings.edit().putString("relay_server", v).apply()
             RelayConfig.baseUrl = if (v.isEmpty()) "https://relaypony.app" else v
+            // This device's inbox now lives on a different relay: re-check what it supports and
+            // tell paired devices again on next contact (PROTOCOL_v3.md section 5.3).
+            relayClients.clear()
+            relayHasMailboxes = null
+            inboxUsers.edit().clear().apply()
+            checkRelayFeatures()
         }
 
     init {
@@ -257,11 +279,208 @@ class TransferController(context: Context) {
             deviceName = deviceName,
             saveDir = { File(appContext.filesDir, "inbox") },
             isPinned = { trustStore.isPinned(it) },
+            limits = { receiveLimits() },
+            isSealedPeer = { isSealedPeer(it) },
+            markSealedPeer = { markSealedPeer(it) },
         ).apply {
             onSendStatus = { peer, st -> wanSendStatus[peer] = wanStatusText(st) }
             onSendingChanged = { set -> wanSending.value = set }
             onReceiveStatus = { st -> wanReceiveStatus.value = wanStatusText(st) }
             onReceived = { batch -> recordWanReceived(batch) }
+        }
+    }
+
+    // ---- 4.0: private inboxes and mutual pairing (PROTOCOL_v3.md sections 4 and 5) ----
+
+    /** Where each paired device can be reached on the relay. */
+    private val peerRoutes = PrefsPeerRouteStore(appContext)
+
+    /** Peers seen reaching this device through its inbox, so they need no more announcements. */
+    private val inboxUsers = appContext.getSharedPreferences("relaypony_inbox_users", Context.MODE_PRIVATE)
+
+    /** This device's private relay inbox, created on first launch. Shared only during pairing. */
+    val myInboxId: String
+        get() = settings.getString("inbox_id", null)?.takeIf { InboxIds.isValid(it) }
+            ?: InboxIds.generate().also { settings.edit().putString("inbox_id", it).apply() }
+
+    /** Give this device a new inbox (Advanced, Identity). Paired devices learn it on next contact. */
+    fun rotateInbox() {
+        settings.edit().putString("inbox_id", InboxIds.generate()).apply()
+        inboxUsers.edit().clear().apply()
+    }
+
+    /** This device's relay, normalized ("" for the default). */
+    val myRelay: String get() = RelayUrls.normalize(relayServer)
+
+    private val relayClients = java.util.concurrent.ConcurrentHashMap<String, RelayClient>()
+    private fun relayClient(normalized: String): RelayClient =
+        relayClients.getOrPut(normalized) { RelayClient(RelayUrls.base(normalized)) }
+
+    /** Whether this device's relay has mailboxes (relay 2.0). Null until the first check answers. */
+    @Volatile var relayHasMailboxes: Boolean? = null
+        private set
+
+    private fun checkRelayFeatures() {
+        thread(name = "relaypony-relay-info") {
+            val info = relayClient(myRelay).info()
+            relayHasMailboxes = info?.hasMailboxes ?: false
+        }
+    }
+
+    /** Latest pairing event for the pair sheet (P2 UI). */
+    val pairingEvent = mutableStateOf<PairingService.Event?>(null)
+
+    val pairing = PairingService(
+        provider = provider,
+        identity = identity,
+        myScalar = myScalar,
+        myHandle = myHandle,
+        myName = { deviceName },
+        myInbox = { myInboxId },
+        myRelay = { myRelay },
+        trust = trustStore,
+        routes = peerRoutes,
+        mailer = { peer, relay, inbox, payload ->
+            // Both paths, always: the relay reaches a peer anywhere, the LAN reaches one with no
+            // internet at all. The receiver handles whichever copy lands first and ignores the other.
+            thread(name = "relaypony-pair-send") {
+                runCatching { relayClient(relay).mboxSend(inbox, payload) }
+            }
+            deliverPairOverLan(peer, payload)
+        },
+    ).apply {
+        onEvent = { ev ->
+            pairingEvent.value = ev
+            if (ev is PairingService.Event.Paired || ev is PairingService.Event.PairedOneWay) refreshShareShortcuts()
+        }
+    }
+
+    init {
+        wan.hooks = object : WanTransfer.InboxHooks {
+            override fun myInbox(): String? = if (relayHasMailboxes == true) myInboxId else null
+            override fun myRelayClient(): RelayClient = relayClient(myRelay)
+            override fun route(peer: String): PeerRoute? = peerRoutes.get(peer)
+            override fun clientFor(relay: String): RelayClient = relayClient(relay)
+            override fun announcement(peer: String): ByteArray? =
+                if (relayHasMailboxes == true && trustStore.isPinned(peer)) pairing.inboxAnnouncement(peer) else null
+            override fun peerUsesMyInbox(peer: String): Boolean = inboxUsers.getBoolean(peer, false)
+            override fun markPeerUsesMyInbox(peer: String) { inboxUsers.edit().putBoolean(peer, true).apply() }
+        }
+        wan.onInboxMessage = { plain -> pairing.onSealedPlain(plain) }
+        checkRelayFeatures()
+    }
+
+    /** Whether opening the pair sheet started the LAN listener or mDNS browsing, to undo on close. */
+    private var pairStartedListener = false
+    private var pairStartedBrowsing = false
+    private var wantsReceivingBeforePair = true
+
+    /**
+     * The pair sheet opened or closed. While it is up the inbox is polled, and the LAN listener and
+     * discovery run even if the user paused receiving, so the PAIR_REQ and PAIR_ACK can travel over
+     * Wi-Fi with no internet. Closing the sheet puts both back the way it found them.
+     */
+    fun setPairSheetOpen(open: Boolean) {
+        wan.holdPolling(open)
+        if (open) {
+            if (serverSocket == null) {
+                wantsReceivingBeforePair = wantsReceiving.value
+                startReceiving()
+                pairStartedListener = true
+            }
+            if (!discovery.isDiscovering) {
+                discovery.startDiscovery { peer -> addPeer(peer) }
+                pairStartedBrowsing = true
+            }
+            acquireBeaconLock()
+            beacon.listen(myHandle, ::addBeaconPeer)
+            probeForPeers()
+        } else {
+            if (pairStartedListener) {
+                stopReceiving()
+                wantsReceiving.value = wantsReceivingBeforePair
+                pairStartedListener = false
+            }
+            if (pairStartedBrowsing) {
+                runCatching { discovery.stopDiscovery() }
+                pairStartedBrowsing = false
+            }
+        }
+    }
+
+    /**
+     * Send a sealed pairing message straight to [peer] over the LAN when it is discovered and
+     * advertises `pr=1` (PROTOCOL_v3 section 4.5). If it isn't in the list yet (the QR was scanned
+     * a moment after the sheet opened), probe once and try again. Best effort: the relay copy goes
+     * out regardless.
+     */
+    private fun deliverPairOverLan(peer: String, payload: ByteArray) {
+        thread(name = "relaypony-pair-lan") {
+            var target = peers.toList().firstOrNull { it.recipientHandle == peer && it.pairCapable }
+            if (target == null) {
+                runCatching {
+                    beacon.probe(1500) { p ->
+                        main.post { addBeaconPeer(p) }
+                        if (target == null && p.recipientHandle == peer && p.pairCapable) {
+                            target = NsdDiscovery.Peer(p.name, p.host, p.port, p.recipientHandle, p.maxWire, p.pairCapable)
+                        }
+                    }
+                }
+            }
+            target?.let { t -> runCatching { LanPair.send(t.host, t.port, payload) } }
+        }
+    }
+
+    // ---- 4.0: word-code pairing (PROTOCOL_v3.md section 7) ----
+
+    /** Where the word-code tab is: the code to show, the outcome, or null when idle (P2 UI). */
+    sealed class WordCodeState {
+        data object Working : WordCodeState()
+        data class Showing(val code: String) : WordCodeState()
+        data class Done(val result: WordCodePairing.Result) : WordCodeState()
+    }
+
+    val wordCodeState = mutableStateOf<WordCodeState?>(null)
+    @Volatile private var wordCodeCancelled = false
+
+    private fun wordCode(): WordCodePairing =
+        WordCodePairing(PakeDetails(myHandle, deviceName, myInboxId, myRelay), { relay -> relayClient(relay) })
+
+    /** Side A: get a code from this device's relay, show it, and wait for the other device. */
+    fun startWordCodeShow() {
+        wordCodeCancelled = false
+        wordCodeState.value = WordCodeState.Working
+        thread(name = "relaypony-wordcode") {
+            val wc = wordCode()
+            val shown = runCatching { wc.claim() }.getOrElse {
+                main.post { wordCodeState.value = WordCodeState.Done(WordCodePairing.Result.Failed(it.message ?: "relay unreachable")) }
+                return@thread
+            }
+            main.post { wordCodeState.value = WordCodeState.Showing(shown.code) }
+            finishWordCode(wc.runAsA(shown, cancelled = { wordCodeCancelled }))
+        }
+    }
+
+    /** Side B: pair using a code typed (or auto-typed) from the other device. */
+    fun startWordCodeEnter(code: String, relay: String = "") {
+        wordCodeCancelled = false
+        wordCodeState.value = WordCodeState.Working
+        thread(name = "relaypony-wordcode") {
+            finishWordCode(wordCode().runAsB(code, RelayUrls.normalize(relay), cancelled = { wordCodeCancelled }))
+        }
+    }
+
+    fun cancelWordCode() { wordCodeCancelled = true }
+
+    private fun finishWordCode(result: WordCodePairing.Result) {
+        main.post {
+            if (result is WordCodePairing.Result.Paired) {
+                val peer = result.peer
+                trustStore.pin(peer.handle, peer.name)
+                peerRoutes.put(peer.handle, PeerRoute(peer.inboxId, peer.relay))
+                refreshShareShortcuts()
+            }
+            wordCodeState.value = WordCodeState.Done(result)
         }
     }
 
@@ -353,7 +572,10 @@ class TransferController(context: Context) {
         thread {
             val result = runCatching {
                 appContext.contentResolver.openOutputStream(uri)?.use { out ->
-                    IdentityBackup.export(passphrase, provider.identityToString(identity), trustStore.all(), out)
+                    IdentityBackup.export(
+                        passphrase, provider.identityToString(identity), trustStore.all(), out,
+                        inboxId = myInboxId, routes = peerRoutes.all(),
+                    )
                 } ?: error("couldn't open the destination file")
             }
             main.post {
@@ -379,6 +601,8 @@ class TransferController(context: Context) {
                     { imported ->
                         identityStore.save(imported.identitySecret)
                         imported.devices.forEach { trustStore.pin(it.recipientHandle, it.name, it.pinnedAtEpochMs) }
+                        imported.routes.forEach { (handle, route) -> peerRoutes.put(handle, route) }
+                        imported.inboxId?.let { settings.edit().putString("inbox_id", it).apply() }
                         trustRevision.intValue++
                         refreshShareShortcuts()
                         setStatus("Imported ${imported.devices.size} device(s). Restart RelayPony to switch to the imported identity.")
@@ -585,8 +809,11 @@ class TransferController(context: Context) {
             while (!server.isClosed) {
                 val written = mutableListOf<Written>()
                 try {
-                    val result = SocketTransfer.receiveOnceFrom(
+                    val result = SocketTransfer.acceptOne(
                         server, provider, identity,
+                        // A one-shot PAIR frame (4.0): hand it to pairing on the main thread, as the
+                        // relay path does. Nothing was received, so nothing to record below.
+                        onPair = { sealed -> main.post { pairing.onLanPair(sealed) } },
                         deviceName = deviceName,
                         recipientHandle = myHandle,
                         onProgress = { recvd, total ->
@@ -595,12 +822,15 @@ class TransferController(context: Context) {
                                 receiveProgress.value = if (total > 0) recvd.toFloat() / total else 1f
                             }
                         },
+                        limits = receiveLimits(),
                     ) { entry ->
                         val dir = File(appContext.filesDir, "inbox").apply { mkdirs() }
                         val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
-                        written.add(Written(entry.name, entry.size, entry.mime, outFile.absolutePath))
+                        // Record the sanitized on-disk name, never the sender's raw entry.name: this
+                        // value becomes ReceivedFile.name and reaches DownloadsSaver (audit 2.3).
+                        written.add(Written(outFile.name, entry.size, entry.mime, outFile.absolutePath))
                         outFile.outputStream()
-                    }
+                    } ?: continue
                     recordReceived(written, result.senderName)
                     main.post {
                         receiveInProgress.value = false
@@ -622,10 +852,11 @@ class TransferController(context: Context) {
             }
             main.post { isReceiving.value = false }
         }
-        discovery.advertise("RelayPony-$port", port, deviceName, myHandle)
+        // pairCapable: this listener accepts PAIR frames, so peers may pair with us over the LAN.
+        discovery.advertise("RelayPony-$port", port, deviceName, myHandle, pairCapable = true)
         acquireBeaconLock()
         beacon.listen(myHandle, ::addBeaconPeer)
-        beacon.advertise(port, deviceName, myHandle)
+        beacon.advertise(port, deviceName, myHandle, pairCapable = true)
         reachableAddresses.clear()
         reachableAddresses.addAll(LocalInterfaces.endpoints().map { "${it.ip}:$port" })
         setStatus(str(R.string.st_listening, port, deviceName))
@@ -669,7 +900,7 @@ class TransferController(context: Context) {
      * A beacon sighting is the same device mDNS would have reported, so it joins the same list.
      */
     private fun addBeaconPeer(peer: BeaconDiscovery.Peer) {
-        addPeer(NsdDiscovery.Peer(peer.name, peer.host, peer.port, peer.recipientHandle, peer.maxWire))
+        addPeer(NsdDiscovery.Peer(peer.name, peer.host, peer.port, peer.recipientHandle, peer.maxWire, peer.pairCapable))
     }
 
     /**
@@ -735,7 +966,9 @@ class TransferController(context: Context) {
      * quietly undiscoverable the moment the user left the Send tab.
      */
     fun stopDiscovery() {
-        runCatching { discovery.stop() }
+        // Browsing only. discovery.stop() would also withdraw this device's own mDNS advertisement,
+        // which made a phone on its Receive tab vanish from mDNS when the user left the Send tab.
+        runCatching { discovery.stopDiscovery() }
         if (!isReceiving.value) {
             runCatching { beacon.close() }
             releaseBeaconLock()
@@ -974,15 +1207,29 @@ class TransferController(context: Context) {
         ServerSocket(PORT_TRANSFER).use { server ->
             server.soTimeout = TRANSFER_TIMEOUT_MS
             val written = mutableListOf<Written>()
-            val result = SocketTransfer.receiveOnceFrom(server, provider, identity) { entry ->
-                val dir = File(appContext.filesDir, "inbox").apply { mkdirs() }
-                val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
-                written.add(Written(entry.name, entry.size, entry.mime, outFile.absolutePath))
-                outFile.outputStream()
+            val result = try {
+                SocketTransfer.receiveOnceFrom(server, provider, identity, limits = receiveLimits()) { entry ->
+                    val dir = File(appContext.filesDir, "inbox").apply { mkdirs() }
+                    val outFile = uniqueFile(dir, FileNames.sanitize(entry.name))
+                    // Sanitized on-disk name only, as in the LAN accept loop (audit 2.3).
+                    written.add(Written(outFile.name, entry.size, entry.mime, outFile.absolutePath))
+                    outFile.outputStream()
+                }
+            } catch (t: Throwable) {
+                // Same cleanup as the LAN accept loop: a capped or aborted transfer leaves nothing behind.
+                written.forEach { runCatching { File(it.path).delete() } }
+                throw t
             }
             recordReceived(written, result.senderName)
             postWifi(UiText(R.string.st_wifi_received, written.size, result.senderName))
         }
+    }
+
+    /** Receive ceilings for every inbound path (audit 2.5), with free space measured on the
+     *  volume that holds the inbox. */
+    private fun receiveLimits(): TransferLimits {
+        val inbox = File(appContext.filesDir, "inbox").apply { mkdirs() }
+        return TransferLimits(freeBytes = { inbox.usableSpace })
     }
 
     private fun connectWithRetry(host: String, port: Int, attempts: Int): Socket {

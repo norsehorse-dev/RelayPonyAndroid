@@ -23,12 +23,28 @@ import com.agepony.core.crypto.X25519Crypto
 object PeerKey {
     private const val INFO = "relaypony/ponydirect/peerkey/v1"
 
+    /**
+     * HKDF info for the signaling-blob MAC key (4.0 sealed signaling). Same X25519 input and salt
+     * as the PonyDirect key, different info, so the two keys are independent and the PonyDirect
+     * key is never reused for anything else.
+     */
+    const val SIGNAL_MAC_INFO = "relaypony/signal/mac/v1"
+
     /** Derive from raw 32-byte X25519 material. [myHandle] / [peerHandle] salt the KDF only. */
     fun derive(
         myScalar: ByteArray,
         peerPublic: ByteArray,
         myHandle: String,
         peerHandle: String,
+    ): ByteArray = derive(myScalar, peerPublic, myHandle, peerHandle, INFO)
+
+    /** As [derive], with an explicit HKDF [info] for a purpose-separated key. */
+    fun derive(
+        myScalar: ByteArray,
+        peerPublic: ByteArray,
+        myHandle: String,
+        peerHandle: String,
+        info: String,
     ): ByteArray {
         require(myScalar.size == 32) { "X25519 scalar must be 32 bytes, got ${myScalar.size}" }
         require(peerPublic.size == 32) { "peer public key must be 32 bytes, got ${peerPublic.size}" }
@@ -39,7 +55,7 @@ object PeerKey {
         val lo = minOf(myHandle, peerHandle)
         val hi = maxOf(myHandle, peerHandle)
         val salt = lo.toByteArray(Charsets.UTF_8) + byteArrayOf(0) + hi.toByteArray(Charsets.UTF_8)
-        return HKDF.derive(shared, salt, INFO.toByteArray(Charsets.UTF_8), 32)
+        return HKDF.derive(shared, salt, info.toByteArray(Charsets.UTF_8), 32)
     }
 
     /** Convenience: decode the peer's age1... handle to its raw public key, then [derive]. */
@@ -47,5 +63,12 @@ object PeerKey {
         val (hrp, peerPublic) = Bech32.decode(peerHandle)
         require(hrp == "age" && peerPublic.size == 32) { "peer handle is not an age1 public key" }
         return derive(myScalar, peerPublic, myHandle, peerHandle)
+    }
+
+    /** As [deriveFromHandles], with an explicit HKDF [info]. */
+    fun deriveFromHandles(myScalar: ByteArray, myHandle: String, peerHandle: String, info: String): ByteArray {
+        val (hrp, peerPublic) = Bech32.decode(peerHandle)
+        require(hrp == "age" && peerPublic.size == 32) { "peer handle is not an age1 public key" }
+        return derive(myScalar, peerPublic, myHandle, peerHandle, info)
     }
 }
