@@ -27,6 +27,12 @@
     "body": "RPI1|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad|QEFCQ0RFRkdISUpLTE1OT1BRUlNUVVZXWFlaW1xdXl8|https%3A%2F%2Frelay.example.com",
     "tag": "f3f5122ada357225ab6649b1210b46500ccd58007bc8379c6e9c82c1ea2f7f64"
   },
+  "unpair": {
+    "key": "4d464cb8d4488e7d6fc9c14167aa022842f3043111a4e0f4bab4e1ae97649676",
+    "atMs": 1791000000000,
+    "body": "RPU1|age1q73he0q5yzfu3d64msd3p6rvksnrwjk3d2598mgtmlqt9wrdr37q2vrn72|age1p4uevq8kl7hw9cfpu6u00gzace58fdgakvgz6rt377v6p895c3ss5ae3ad|1791000000000",
+    "tag": "6b4691e04a38ef8a9c2d28a6807d505fd39d97b118a18d70f7cf4e1650efcd30"
+  },
   "pake_mailbox": {
     "nameplate": 47,
     "default_A": "MQ6BLcYL7MxTfQd8dULQXBeV_RrJ5t08_zViFtYVDXA",

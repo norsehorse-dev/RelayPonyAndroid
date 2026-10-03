@@ -512,6 +512,7 @@ fun PairPrompts(controller: TransferController) {
         ) { pair.dismissPrompt() }
         is Prompt.NoAnswer -> MessageDialog(stringResource(R.string.pair_no_answer, p.name)) { pair.dismissPrompt() }
         is Prompt.Problem -> MessageDialog(p.text.resolve()) { pair.dismissPrompt() }
+        is Prompt.UnpairedBy -> MessageDialog(stringResource(R.string.pair_unpaired_by, p.name)) { pair.dismissPrompt() }
     }
 }
 

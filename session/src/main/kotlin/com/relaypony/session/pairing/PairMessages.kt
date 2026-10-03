@@ -19,6 +19,7 @@ import javax.crypto.spec.SecretKeySpec
 object PairMessages {
     const val ACK_INFO = "relaypony/pair/ack/v1"
     const val INBOX_INFO = "relaypony/inbox/v1"
+    const val UNPAIR_INFO = "relaypony/unpair/v1"
 
     private fun form(s: String) = URLEncoder.encode(s, "UTF-8")
     private fun unform(s: String) = URLDecoder.decode(s, "UTF-8")
@@ -126,6 +127,31 @@ object PairMessages {
         return InboxAnnouncement(p[1], p[2], p[3], unform(p[4]))
     }
 
+    // ---- Unpair notice (section 4.7) ----
+
+    /** [from] unpaired [to] at [atMs] on its own clock. */
+    data class Unpair(val from: String, val to: String, val atMs: Long) {
+        fun body(): String = listOf("RPU1", from, to, atMs.toString()).joinToString("|")
+    }
+
+    fun encodeUnpair(u: Unpair, myScalar: ByteArray): String {
+        val key = PeerKey.deriveFromHandles(myScalar, u.from, u.to, UNPAIR_INFO)
+        val body = u.body()
+        return body + "|" + hex(hmac(key, body))
+    }
+
+    /** Parse and verify. The caller still checks that `from` is pinned and the notice is newer than the pin. */
+    fun decodeUnpair(plain: String, myScalar: ByteArray, myHandle: String): Unpair {
+        val (body, tag) = splitTagged(plain)
+        val p = body.split("|")
+        require(p.size == 4 && p[0] == "RPU1" && p[1].startsWith("age1")) { "not an unpair notice" }
+        require(p[2] == myHandle) { "notice not for this device" }
+        val at = p[3].toLongOrNull() ?: throw IllegalArgumentException("bad time")
+        val key = PeerKey.deriveFromHandles(myScalar, myHandle, p[1], UNPAIR_INFO)
+        require(MessageDigest.isEqual(hmac(key, body), tag)) { "bad unpair tag" }
+        return Unpair(p[1], p[2], at)
+    }
+
     // ---- Sealing and dispatch ----
 
     /** age-seal a plaintext line to [toHandle]. */
@@ -148,13 +174,14 @@ object PairMessages {
     }
 
     /** What a sealed relay payload turned out to be, by its plaintext prefix (section 6.1). */
-    enum class Kind { SIGNAL, PAIR_REQUEST, PAIR_ACK, INBOX, UNKNOWN }
+    enum class Kind { SIGNAL, PAIR_REQUEST, PAIR_ACK, INBOX, UNPAIR, UNKNOWN }
 
     fun kindOf(plain: String): Kind = when {
         plain.startsWith("RPS2|") -> Kind.SIGNAL
         plain.startsWith("RPQ1|") -> Kind.PAIR_REQUEST
         plain.startsWith("RPA1|") -> Kind.PAIR_ACK
         plain.startsWith("RPI1|") -> Kind.INBOX
+        plain.startsWith("RPU1|") -> Kind.UNPAIR
         else -> Kind.UNKNOWN
     }
 }

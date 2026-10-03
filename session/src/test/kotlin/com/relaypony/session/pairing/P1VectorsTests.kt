@@ -96,6 +96,23 @@ class P1VectorsTests {
             PairMessages.decodeInbox(plain.replace(inboxA, inboxB), scalarB, handleB)
         }
     }
+
+    @Test
+    fun unpairNotice_matchesReference() {
+        assertEquals("4d464cb8d4488e7d6fc9c14167aa022842f3043111a4e0f4bab4e1ae97649676",
+            PeerKey.deriveFromHandles(scalarA, handleA, handleB, PairMessages.UNPAIR_INFO).joinToString("") { "%02x".format(it) })
+        val u = PairMessages.Unpair(handleA, handleB, 1791000000000L)
+        val plain = PairMessages.encodeUnpair(u, scalarA)
+        assertEquals("RPU1|$handleA|$handleB|1791000000000|6b4691e04a38ef8a9c2d28a6807d505fd39d97b118a18d70f7cf4e1650efcd30", plain)
+        assertEquals(PairMessages.Kind.UNPAIR, PairMessages.kindOf(plain))
+        assertEquals(u, PairMessages.decodeUnpair(plain, scalarB, handleB))
+        // Move the time forward without the key: the tag no longer verifies.
+        assertThrows(IllegalArgumentException::class.java) {
+            PairMessages.decodeUnpair(plain.replace("|1791000000000|", "|1791000000001|"), scalarB, handleB)
+        }
+        // Addressed to someone else.
+        assertThrows(IllegalArgumentException::class.java) { PairMessages.decodeUnpair(plain, scalarB, handleA) }
+    }
 }
 
 class PairingFlowTests {

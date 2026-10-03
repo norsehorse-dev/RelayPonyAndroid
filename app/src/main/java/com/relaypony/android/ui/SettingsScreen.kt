@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.dp
 import com.relaypony.android.BuildConfig
 import com.relaypony.android.R
 import com.relaypony.android.transfer.TransferController
+import com.relaypony.session.pairing.PinnedDevice
 
 private val LANGUAGES = listOf(
     "en" to "English",
@@ -185,6 +186,10 @@ fun SettingsScreen(controller: TransferController) {
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
         )
+
+        HorizontalDivider()
+
+        PairedDevicesSection(controller)
 
         HorizontalDivider()
 
@@ -443,5 +448,56 @@ private fun LinkRow(title: String, subtitle: String, onClick: () -> Unit) {
             Text(title, style = MaterialTheme.typography.titleSmall)
             Text(subtitle, style = MaterialTheme.typography.bodySmall)
         }
+    }
+}
+
+/**
+ * Every paired device, with Unpair behind a confirmation (PROTOCOL_v3.md section 4.7). Unpairing
+ * also tells the other device, so it forgets this one too. Moves to Advanced, Pairing in the
+ * redesign.
+ */
+@Composable
+private fun PairedDevicesSection(controller: TransferController) {
+    val revision = controller.trustRevision.intValue
+    val devices = remember(revision) { controller.pairedDevices().sortedBy { it.name.lowercase() } }
+    var confirm by remember { mutableStateOf<PinnedDevice?>(null) }
+
+    Text(stringResource(R.string.set_paired_header), style = MaterialTheme.typography.titleMedium)
+    if (devices.isEmpty()) {
+        Text(stringResource(R.string.set_paired_empty), style = MaterialTheme.typography.bodySmall)
+    }
+    devices.forEach { device ->
+        Card(modifier = Modifier.fillMaxWidth()) {
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(start = 14.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(device.name, style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        device.recipientHandle,
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                }
+                TextButton(onClick = { confirm = device }) { Text(stringResource(R.string.set_paired_remove)) }
+            }
+        }
+    }
+
+    confirm?.let { device ->
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            title = { Text(stringResource(R.string.set_unpair_title, device.name)) },
+            text = { Text(stringResource(R.string.set_unpair_body, device.name)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.unpair(device.recipientHandle)
+                    confirm = null
+                }) { Text(stringResource(R.string.set_unpair_confirm), color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text(stringResource(R.string.pair_cancel)) } },
+        )
     }
 }

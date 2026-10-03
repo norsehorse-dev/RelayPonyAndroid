@@ -487,6 +487,14 @@ class WanTransfer(
     private fun peerRelayBase(peer: String): String =
         hooks.route(peer)?.let { RelayUrls.base(it.relay) } ?: RelayConfig.baseUrl
 
+    /**
+     * Post an already-sealed message (an unpair notice, say) to [peer] in the background: to its
+     * inbox when a route is known, otherwise to its handle on this device's relay.
+     */
+    fun sendSealed(peer: String, sealed: ByteArray) {
+        Thread { runCatching { signaling.sendRaw(peer, sealed) } }.apply { isDaemon = true; start() }
+    }
+
     /** Send this device's inbox announcement to [peer] in the background (section 5.3). */
     private fun announceInbox(peer: String) {
         val sealed = hooks.announcement(peer) ?: return

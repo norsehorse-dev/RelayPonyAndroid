@@ -358,4 +358,11 @@
     <string name="pair_ok">OK</string>
     <string name="send_pair_new">Pair a new device</string>
     <string name="send_pair_peer">Pair</string>
+    <string name="pair_unpaired_by">%1$s unpaired from this device. To send to each other again, pair again.</string>
+    <string name="set_paired_header">Paired devices</string>
+    <string name="set_paired_empty">No paired devices yet. Tap the pair icon at the top to add one.</string>
+    <string name="set_paired_remove">Unpair</string>
+    <string name="set_unpair_title">Unpair %1$s?</string>
+    <string name="set_unpair_body">This device stops trusting %1$s, and RelayPony tells %1$s to forget this device too. To send to each other again, pair again.</string>
+    <string name="set_unpair_confirm">Unpair</string>
 </resources>

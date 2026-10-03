@@ -50,6 +50,8 @@ class PairingService(
         data class PairedOneWay(val handle: String, val name: String) : Event()
         /** A paired device told us its new inbox. */
         data class RouteUpdated(val handle: String) : Event()
+        /** A paired device unpaired this one (section 4.7). Its pin and route are already gone. */
+        data class Unpaired(val handle: String, val name: String) : Event()
     }
 
     var onEvent: (Event) -> Unit = {}
@@ -111,6 +113,14 @@ class PairingService(
                 routes.put(a.from, PeerRoute(a.inboxId, a.relay))
                 onEvent(Event.RouteUpdated(a.from))
             }
+            PairMessages.Kind.UNPAIR -> {
+                val u = runCatching { PairMessages.decodeUnpair(plain, myScalar, myHandle) }.getOrNull() ?: return true
+                val pinned = trust.get(u.from) ?: return true
+                // Older than the pin: a captured notice replayed after the two paired again.
+                if (u.atMs <= pinned.pinnedAtEpochMs) return true
+                forget(u.from)
+                onEvent(Event.Unpaired(u.from, pinned.name))
+            }
             else -> return false
         }
         return true
@@ -132,14 +142,15 @@ class PairingService(
     }
 
     /**
-     * Feed one PAIR frame accepted by the LAN listener. Only PAIR_REQ and PAIR_ACK are honoured on
-     * this path; anything else (including an inbox announcement) is dropped, since the LAN listener
-     * accepts connections from anyone on the network.
+     * Feed one PAIR frame accepted by the LAN listener. Only PAIR_REQ, PAIR_ACK and the unpair
+     * notice are honoured on this path; anything else (including an inbox announcement) is dropped,
+     * since the LAN listener accepts connections from anyone on the network. The unpair notice is
+     * tagged under a pair key, so only a paired device can produce one.
      */
     fun onLanPair(sealed: ByteArray) {
         val plain = open(sealed) ?: return
         when (PairMessages.kindOf(plain)) {
-            PairMessages.Kind.PAIR_REQUEST, PairMessages.Kind.PAIR_ACK -> onSealedPlain(plain)
+            PairMessages.Kind.PAIR_REQUEST, PairMessages.Kind.PAIR_ACK, PairMessages.Kind.UNPAIR -> onSealedPlain(plain)
             else -> Unit
         }
     }
@@ -148,6 +159,21 @@ class PairingService(
     fun inboxAnnouncement(peer: String): ByteArray {
         val plain = PairMessages.encodeInbox(PairMessages.InboxAnnouncement(myHandle, peer, myInbox(), myRelay()), myScalar)
         return PairMessages.seal(provider, peer, plain)
+    }
+
+    /**
+     * The sealed RPU1 telling [peer] this device unpaired it (section 4.7). Build it before
+     * [forget], while the peer is still pinned.
+     */
+    fun unpairNotice(peer: String): ByteArray {
+        val plain = PairMessages.encodeUnpair(PairMessages.Unpair(myHandle, peer, now()), myScalar)
+        return PairMessages.seal(provider, peer, plain)
+    }
+
+    /** Drop [peer]'s pin and relay route on this device. */
+    fun forget(peer: String) {
+        trust.remove(peer)
+        routes.remove(peer)
     }
 
     /** Open a sealed inbox payload to its plaintext line, or null if it isn't for us. */

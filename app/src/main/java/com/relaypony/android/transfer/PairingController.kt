@@ -29,6 +29,8 @@ class PairingController(
     private val onPinned: (handle: String, name: String) -> Unit,
     /** Pin a device that a word code paired, with its relay route. */
     private val pinWordCodePeer: (PakeDetails) -> Unit,
+    /** A paired device unpaired this one; its pin and route are already gone. */
+    private val onUnpinned: (handle: String) -> Unit,
     private val main: Handler,
 ) {
     enum class Tab { QR, SCAN, WORD }
@@ -121,6 +123,8 @@ class PairingController(
         data class Declined(val name: String) : Prompt()
         data class NoAnswer(val name: String) : Prompt()
         data class Problem(val text: UiText) : Prompt()
+        /** The other device unpaired this one (PROTOCOL_v3.md section 4.7). */
+        data class UnpairedBy(val name: String) : Prompt()
     }
 
     val prompt = mutableStateOf<Prompt?>(null)
@@ -159,6 +163,11 @@ class PairingController(
             is PairingService.Event.PairedOneWay -> pinned(ev.handle, ev.name, oneWay = true)
             is PairingService.Event.Declined -> setPrompt(Prompt.Declined((prompt.value as? Prompt.Waiting)?.name ?: ""))
             is PairingService.Event.RouteUpdated -> Unit
+            is PairingService.Event.Unpaired -> {
+                onUnpinned(ev.handle)
+                // Don't cover a code comparison that is in progress with something else.
+                if (prompt.value == null) setPrompt(Prompt.UnpairedBy(ev.name))
+            }
         }
     }
 

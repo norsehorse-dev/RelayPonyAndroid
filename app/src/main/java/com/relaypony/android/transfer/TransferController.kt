@@ -367,6 +367,7 @@ class TransferController(context: Context) {
             trustStore.pin(peer.handle, peer.name)
             peerRoutes.put(peer.handle, PeerRoute(peer.inboxId, peer.relay))
         },
+        onUnpinned = { handle -> afterUnpin(handle) },
         main = main,
     ).apply {
         onPairAndSend = { handle -> sendTo(handle) }
@@ -385,6 +386,35 @@ class TransferController(context: Context) {
         }
         wan.onInboxMessage = { plain -> pairing.onSealedPlain(plain) }
         checkRelayFeatures()
+    }
+
+    /**
+     * Unpair [handle] (PROTOCOL_v3.md section 4.7). The notice goes out best effort by every path:
+     * the peer's inbox, its handle queue on this device's relay, and the LAN when it is discovered.
+     * Then the pin and route are dropped here.
+     */
+    fun unpair(handle: String) {
+        val notice = runCatching { pairing.unpairNotice(handle) }.getOrNull()
+        val route = peerRoutes.get(handle)
+        pairing.forget(handle)
+        if (notice != null) {
+            if (route != null) {
+                thread(name = "relaypony-unpair") { runCatching { relayClient(route.relay).mboxSend(route.inboxId, notice) } }
+            }
+            // The route is gone now, so this one goes to the handle queue.
+            wan.sendSealed(handle, notice)
+            deliverPairOverLan(handle, notice)
+        }
+        afterUnpin(handle)
+    }
+
+    /** Clean-up shared by unpairing here and being unpaired by the other device. */
+    private fun afterUnpin(handle: String) {
+        inboxUsers.edit().remove(handle).apply()
+        runCatching { ShortcutManagerCompat.removeLongLivedShortcuts(appContext, listOf(SHORTCUT_PREFIX + handle)) }
+        refreshShareShortcuts()
+        if (preselectHandle.value == handle) preselectHandle.value = null
+        trustRevision.intValue++
     }
 
     /** Whether opening the pair sheet started the LAN listener or mDNS browsing, to undo on close. */
@@ -461,8 +491,8 @@ class TransferController(context: Context) {
     }
 
     /** A4: publish the paired devices as Direct Share targets, newest pins first, capped to the
-     *  launcher's per-activity limit. Called on launch and whenever a new device is pinned; there
-     *  is no unpair path on Android today, so this set only grows until reinstall. All wrapped in
+     *  launcher's per-activity limit. Called on launch and whenever a device is pinned or unpaired
+     *  (unpairing also removes that device's cached long-lived shortcut). All wrapped in
      *  runCatching because shortcut publishing is a best-effort convenience, never load-bearing. */
     private fun refreshShareShortcuts() {
         runCatching {

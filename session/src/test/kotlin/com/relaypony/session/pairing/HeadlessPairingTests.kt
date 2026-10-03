@@ -127,6 +127,76 @@ class HeadlessPairingTests {
         assertEquals(null, b.routes.get(m.handle))
     }
 
+    /** Pair [a] (shows the QR) with [b] (scans it) over the fake relays. */
+    private fun pair(a: Client, b: Client) {
+        b.service.onScanned(a.service.showQr().encode()); a.pump()
+        a.service.confirm(a.events.filterIsInstance<PairingService.Event.Request>().last().pending, true); b.pump()
+        assertTrue(a.trust.isPinned(b.handle) && b.trust.isPinned(a.handle))
+    }
+
+    @Test
+    fun unpair_removesBothSides() {
+        val relays = FakeRelays()
+        val a = Client("A", "", relays, clock = 1_000); val b = Client("B", "https://relay.example.com", relays, clock = 1_000)
+        pair(a, b)
+
+        a.clock = 2_000
+        val notice = a.service.unpairNotice(b.handle)
+        val route = a.routes.get(b.handle)!!
+        a.service.forget(b.handle)
+        relays.send(route.relay, route.inboxId, notice)
+        assertFalse(a.trust.isPinned(b.handle))
+        assertEquals(null, a.routes.get(b.handle))
+
+        b.clock = 2_000
+        assertEquals(1, b.pump())
+        assertFalse(b.trust.isPinned(a.handle))
+        assertEquals(null, b.routes.get(a.handle))
+        val ev = b.events.last() as PairingService.Event.Unpaired
+        assertEquals(a.handle, ev.handle)
+        assertEquals("A", ev.name)
+    }
+
+    @Test
+    fun unpairNotice_replayedAfterRepairing_isIgnored() {
+        val relays = FakeRelays()
+        val a = Client("A", "", relays, clock = 1_000); val b = Client("B", "", relays, clock = 1_000)
+        pair(a, b)
+        a.clock = 2_000
+        val old = a.service.unpairNotice(b.handle)
+        relays.send("", b.inbox, old); b.clock = 2_000; b.pump()
+        assertFalse(b.trust.isPinned(a.handle))
+
+        // They pair again later; someone replays the captured notice.
+        a.clock = 3_000; b.clock = 3_000
+        a.service.forget(b.handle)
+        pair(a, b)
+        relays.send("", b.inbox, old); b.pump()
+        assertTrue(b.trust.isPinned(a.handle))
+    }
+
+    @Test
+    fun unpairNotice_fromAnUnpairedDevice_isIgnored() {
+        val relays = FakeRelays()
+        val a = Client("A", "", relays); val b = Client("B", "", relays); val m = Client("M", "", relays)
+        pair(a, b)
+        m.clock = 10_000
+        relays.send("", b.inbox, m.service.unpairNotice(b.handle))
+        b.clock = 10_000; b.pump()
+        assertTrue(b.trust.isPinned(a.handle))
+        assertTrue(b.events.none { it is PairingService.Event.Unpaired })
+    }
+
+    @Test
+    fun unpairNotice_isHonouredOnTheLanPath() {
+        val relays = FakeRelays()
+        val a = Client("A", "", relays, clock = 1_000); val b = Client("B", "", relays, clock = 1_000)
+        pair(a, b)
+        a.clock = 2_000; b.clock = 2_000
+        b.service.onLanPair(a.service.unpairNotice(b.handle))
+        assertFalse(b.trust.isPinned(a.handle))
+    }
+
     @Test
     fun legacyV1Qr_pinsOneWay() {
         val relays = FakeRelays()

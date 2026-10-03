@@ -64,6 +64,11 @@ out["pair_ack"] = {"key": K("relaypony/pair/ack/v1").hex(), "body": ack_body, "t
 inbox_body = "|".join(["RPI1", HANDLE_A, HANDLE_B, b64u(INBOX_A), form("https://relay.example.com")])
 out["inbox_announce"] = {"key": K("relaypony/inbox/v1").hex(), "body": inbox_body, "tag": tag("relaypony/inbox/v1", inbox_body)}
 
+UNPAIR_AT = 1791000000000
+unpair_body = "|".join(["RPU1", HANDLE_A, HANDLE_B, str(UNPAIR_AT)])
+out["unpair"] = {"key": K("relaypony/unpair/v1").hex(), "atMs": UNPAIR_AT, "body": unpair_body,
+                 "tag": tag("relaypony/unpair/v1", unpair_body)}
+
 out["pake_mailbox"] = {
     "nameplate": 47,
     "default_A": mbox(47, "", "A"), "default_B": mbox(47, "", "B"),

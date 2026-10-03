@@ -35,6 +35,7 @@ a 4.0 peer.
   | `relaypony/signal/mac/v1` | Sealed signaling tag (section 6) | 4.0 |
   | `relaypony/pair/ack/v1` | PAIR_ACK tag (section 4.4) | 4.0 |
   | `relaypony/inbox/v1` | Inbox announcement tag (section 5.3) | 4.0 |
+  | `relaypony/unpair/v1` | Unpair notice tag (section 4.7) | 4.0 |
   | `relaypony/hello/v1` | Reserved for authenticated HELLO (section 9) | reserved |
 
   A key from one `info` is never used for another purpose.
@@ -155,9 +156,10 @@ LAN details, as implemented:
 - **Frame.** `[0x08][u32 length][msg]`, length at most 16384. A larger declared length, a truncated
   frame or a connection that ends early is dropped silently; the relay copy is the fallback.
 - **Listener.** The first frame must arrive within 30 seconds of the connection being accepted,
-  after which a session runs with no read timeout, as in 3.x. On the PAIR path only `RPQ1` and
-  `RPA1` are honoured. Anything else that opens (an `RPI1` inbox announcement, signaling) is dropped,
-  because the listener accepts connections from anyone on the network.
+  after which a session runs with no read timeout, as in 3.x. On the PAIR path only `RPQ1`, `RPA1`
+  and `RPU1` (section 4.7) are honoured. Anything else that opens (an `RPI1` inbox announcement,
+  signaling) is dropped, because the listener accepts connections from anyone on the network.
+  `RPU1` is allowed because it is tagged under a pair key, so only a paired device can produce one.
 - **Lifetime.** While the pair sheet is open, the device runs its listener and discovery even if
   the user paused receiving, and restores both when the sheet closes. A sender that doesn't see the
   peer yet probes (Android) or re-checks discovery (iOS) for a few seconds before giving up on the
@@ -167,6 +169,31 @@ LAN details, as implemented:
 
 If B had content staged, the transfer starts as soon as B pins A. A can't send to B until A's user
 confirms, and that confirmation is the same tap.
+
+### 4.7 Unpairing
+
+Either device can unpair the other. It removes the peer's pin and route on its own side, and tells
+the peer, best effort, so it does the same:
+
+```
+body = "RPU1|" from "|" to "|" atMs          atMs: the sender's clock, decimal ms since the epoch
+tag  = HMAC(K("relaypony/unpair/v1"), body)
+msg  = age_seal(to, body "|" hex(tag))
+```
+
+It goes to the peer's inbox on the peer's relay when the route is known, to the peer's handle on the
+sender's relay as well (so a peer that never announced an inbox still gets it), and as a LAN `PAIR`
+frame when the peer is discovered with `pr=1`.
+
+The receiver drops it unless `to` is its own handle, `from` is pinned, the tag verifies, and `atMs`
+is later than the time it pinned `from`. The last check stops a captured notice from undoing a later
+re-pairing. If the sender's clock runs behind the receiver's by more than the time the two were
+paired, a genuine notice is dropped too, which leaves the receiver as it was. On success the receiver
+removes the pin, the route and any record that `from` uses its inbox, and tells the user
+"<name> unpaired from this device." It sends nothing back.
+
+Unpairing doesn't rotate the inbox. The former peer still knows it, but anything it posts there is
+sealed signaling from an unpinned handle and is dropped.
 
 ## 5. Private inboxes
 
@@ -220,7 +247,7 @@ After that it sends sealed only, and a plaintext blob claiming to come from that
 
 Every relay payload is standard base64 of the message bytes. A payload whose bytes start with
 `age-encryption.org/v1` is sealed: after `age_open`, the plaintext prefix decides the type, `RPS2|`
-signaling, `RPQ1|` PAIR_REQ, `RPA1|` PAIR_ACK or `RPI1|` inbox announcement. A payload whose bytes
+signaling, `RPQ1|` PAIR_REQ, `RPA1|` PAIR_ACK, `RPI1|` inbox announcement or `RPU1|` unpair notice. A payload whose bytes
 start with `RPK1|` is a PAKE message (section 7, not sealed, see 7.3), and one starting with `RPS1|`
 is legacy plaintext signaling. Anything else is dropped.
 
