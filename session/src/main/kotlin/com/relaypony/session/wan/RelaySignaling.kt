@@ -18,11 +18,10 @@ object RelayConfig {
 }
 
 /**
- * Relay-backed signaling: the twin of [PasteSignaling], but instead of the clipboard it ships each
- * [SignalBlob] through the RelayPony signaling relay (addressed by the peer's age handle) and polls
- * the relay for blobs addressed to this device. The relay only brokers the ~1 KB handshake; the file
- * transfer is peer-to-peer over the punched socket and never touches it. The blob is carried as an
- * opaque base64 payload, so the relay can be sealed later with no server change.
+ * Relay-backed signaling: ships each [SignalBlob] through the RelayPony signaling relay, to the
+ * peer's inbox or handle, and polls the relay for blobs addressed to this device. The relay only
+ * brokers the ~1 KB handshake; the file transfer is peer-to-peer over the punched socket unless the
+ * relay-forward fallback is needed, and even then it only carries ciphertext.
  */
 class RelaySignaling(
     private val selfHandle: String,

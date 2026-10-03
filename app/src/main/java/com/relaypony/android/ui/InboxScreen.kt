@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -49,7 +50,7 @@ fun InboxScreen(controller: TransferController) {
         val file = pendingSave
         pendingSave = null
         if (granted && file != null) controller.saveToDownloads(file)
-        else if (!granted) controller.status.value = storagePermMsg
+        else if (!granted) controller.showNotice(storagePermMsg)
     }
     fun save(file: ReceivedFile) {
         if (controller.needsStoragePermission()) {
@@ -67,8 +68,20 @@ fun InboxScreen(controller: TransferController) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
+        if (controller.receiveInProgress.value || controller.wanReceiving.value) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text(stringResource(R.string.rec_receiving), style = MaterialTheme.typography.bodyMedium)
+                    if (controller.receiveInProgress.value) {
+                        LinearProgressIndicator(progress = { controller.receiveProgress.value }, modifier = Modifier.fillMaxWidth())
+                    } else {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                }
+            }
+        }
         if (controller.inbox.isEmpty()) {
-            Text(stringResource(R.string.nav_inbox), style = MaterialTheme.typography.titleMedium)
+            Text(stringResource(R.string.nav_received), style = MaterialTheme.typography.titleMedium)
             Text(
                 stringResource(R.string.inbox_empty),
                 style = MaterialTheme.typography.bodyMedium,
@@ -173,7 +186,7 @@ private fun extOf(name: String): String {
     return if (dot in 1 until name.length - 1) name.substring(dot + 1).take(4).uppercase(Locale.US) else "FILE"
 }
 
-private fun formatSize(bytes: Long): String {
+internal fun formatSize(bytes: Long): String {
     if (bytes < 1024) return "$bytes B"
     val kb = bytes / 1024.0
     if (kb < 1024) return String.format(Locale.US, "%.1f KB", kb)

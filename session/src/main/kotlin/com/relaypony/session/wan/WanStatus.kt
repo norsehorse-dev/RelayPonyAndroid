@@ -21,6 +21,8 @@ enum class WanStatusKind {
     RECEIVING_RELAY,
     RECEIVED,
     RECEIVE_FAILED,
+    /** The user stopped the send. */
+    CANCELLED,
 }
 
 /**

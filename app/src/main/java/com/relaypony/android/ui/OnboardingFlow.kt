@@ -269,7 +269,6 @@ private fun PhoneGlyph(modifier: Modifier = Modifier) {
 
 @Composable
 private fun DevicePage(controller: TransferController) {
-    val qr = remember { QrImage.generate(controller.myQrText()) }
     Text(stringResource(R.string.ob_device_title), style = MaterialTheme.typography.headlineSmall)
     Text(
         stringResource(R.string.ob_device_body),
@@ -277,10 +276,13 @@ private fun DevicePage(controller: TransferController) {
         textAlign = TextAlign.Center,
         modifier = Modifier.padding(top = 8.dp, bottom = 16.dp),
     )
-    Image(
-        bitmap = qr.asImageBitmap(),
-        contentDescription = stringResource(R.string.ob_device_qr_desc),
-        modifier = Modifier.size(220.dp),
+    // 4.0 pairs from the pair icon on every screen (a fresh, single-use QR each time), so
+    // onboarding points at the icon instead of showing a code here.
+    androidx.compose.material3.Icon(
+        QrCodeIcon,
+        contentDescription = null,
+        tint = MaterialTheme.colorScheme.primary,
+        modifier = Modifier.size(96.dp),
     )
     Text(
         stringResource(R.string.ob_this_device, controller.deviceName),

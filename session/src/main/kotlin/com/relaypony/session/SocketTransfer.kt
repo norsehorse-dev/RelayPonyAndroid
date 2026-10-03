@@ -111,9 +111,13 @@ object SocketTransfer {
         files: List<OutgoingFile>,
         peerMaxWire: Int = 1,
         connectTimeoutMs: Int = 10_000,
+        /** Handed the socket before connecting, so the caller can close it to stop the send. */
+        onSocket: ((Socket) -> Unit)? = null,
+        // Last, so existing callers can keep passing progress as a trailing lambda.
         onProgress: ((Long, Long) -> Unit)? = null,
     ) {
         Socket().use { socket ->
+            onSocket?.invoke(socket)
             socket.connect(InetSocketAddress(host, port), connectTimeoutMs)
             val reverseIn = BufferedInputStream(socket.getInputStream())
             BufferedOutputStream(socket.getOutputStream()).use { out ->

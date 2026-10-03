@@ -61,6 +61,7 @@ import java.io.File
 import java.net.ServerSocket
 import java.net.Socket
 import java.security.SecureRandom
+import java.util.concurrent.ConcurrentHashMap
 import kotlin.concurrent.thread
 
 /**
@@ -196,6 +197,7 @@ class TransferController(context: Context) {
         WanStatusKind.RECEIVING_RELAY -> str(R.string.wan_receiving_relay)
         WanStatusKind.RECEIVED -> str(R.string.wan_received, st.count, st.arg ?: "")
         WanStatusKind.RECEIVE_FAILED -> str(R.string.wan_receive_failed, st.arg ?: str(R.string.wan_unknown_error))
+        WanStatusKind.CANCELLED -> str(R.string.wan_cancelled)
     }
 
     /** The idle status string in the persisted in-app language, read directly from settings so it does
@@ -211,6 +213,17 @@ class TransferController(context: Context) {
     private fun setStatus(text: String, kind: StatusKind = StatusKind.OTHER) {
         status.value = text
         lastStatusKind.value = kind
+        if (kind == StatusKind.RECEIVED) showNotice(text)
+    }
+
+    /**
+     * A one-line message for the snackbar: the outcome of something the user did (a backup, a
+     * relay change) or something that just arrived. Cleared by the UI once shown.
+     */
+    val notice = mutableStateOf<String?>(null)
+
+    fun showNotice(text: String) {
+        notice.value = text
     }
 
     /** When on, received files are also copied to public Downloads. Persisted. */
@@ -251,6 +264,8 @@ class TransferController(context: Context) {
     val wanReceiveActive = mutableStateOf(false)
     /** Short status line for the WAN receive state. */
     val wanReceiveStatus = mutableStateOf("")
+    /** True while a transfer is arriving over the internet. */
+    val wanReceiving = mutableStateOf(false)
 
     /** WAN-direct transfer engine (paired devices not on the same LAN). Assigned in init. */
     val wan: WanTransfer
@@ -283,9 +298,18 @@ class TransferController(context: Context) {
             isSealedPeer = { isSealedPeer(it) },
             markSealedPeer = { markSealedPeer(it) },
         ).apply {
-            onSendStatus = { peer, st -> wanSendStatus[peer] = wanStatusText(st) }
+            onSendStatus = { peer, st ->
+                wanSendStatus[peer] = wanStatusText(st)
+                onWanLegStatus(peer, st)
+            }
+            onSendProgress = { peer, sent, total ->
+                updateLeg(peer) { if (it.route != SendRoute.NEARBY && it.active) it.copy(progress = sent.toFloat() / total) else it }
+            }
             onSendingChanged = { set -> wanSending.value = set }
-            onReceiveStatus = { st -> wanReceiveStatus.value = wanStatusText(st) }
+            onReceiveStatus = { st ->
+                wanReceiveStatus.value = wanStatusText(st)
+                wanReceiving.value = st.kind == WanStatusKind.RECEIVING || st.kind == WanStatusKind.RECEIVING_RELAY
+            }
             onReceived = { batch -> recordWanReceived(batch) }
         }
     }
@@ -370,7 +394,7 @@ class TransferController(context: Context) {
         onUnpinned = { handle -> afterUnpin(handle) },
         main = main,
     ).apply {
-        onPairAndSend = { handle -> sendTo(handle) }
+        onPairAndSend = { handle -> sendToDevices(listOf(handle)) }
     }
 
     init {
@@ -480,14 +504,14 @@ class TransferController(context: Context) {
     }
 
     /** A4: a handle a Direct Share target asked us to pre-select on the Send screen, or null.
-     *  Consumed by SendScreen once the matching peer is discovered; best-effort by nature. */
+     *  The Send-to sheet ticks it when it opens. */
     val preselectHandle = mutableStateOf<String?>(null)
 
     /** Called from MainActivity when the app was opened via a Direct Share target. Remembers the
      *  device to pre-check and makes sure discovery is running so it can actually be found. */
     fun preselectForSend(handle: String) {
         preselectHandle.value = handle
-        startDiscovery()
+        if (trustStore.isPinned(handle)) sendToPreselect.value = setOf(handle)
     }
 
     /** A4: publish the paired devices as Direct Share targets, newest pins first, capped to the
@@ -575,7 +599,7 @@ class TransferController(context: Context) {
             }
             main.post {
                 identityBusy.value = false
-                setStatus(result.fold({ "Identity exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
+                showNotice(result.fold({ "Identity exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
             }
         }
     }
@@ -600,9 +624,9 @@ class TransferController(context: Context) {
                         imported.inboxId?.let { settings.edit().putString("inbox_id", it).apply() }
                         trustRevision.intValue++
                         refreshShareShortcuts()
-                        setStatus("Imported ${imported.devices.size} device(s). Restart RelayPony to switch to the imported identity.")
+                        showNotice("Imported ${imported.devices.size} device(s). Restart RelayPony to switch to the imported identity.")
                     },
-                    { setStatus("Import failed: ${it.message ?: "unknown error"}") },
+                    { showNotice("Import failed: ${it.message ?: "unknown error"}") },
                 )
             }
         }
@@ -621,7 +645,7 @@ class TransferController(context: Context) {
             }
             main.post {
                 identityBusy.value = false
-                setStatus(result.fold({ "Address book exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
+                showNotice(result.fold({ "Address book exported." }, { "Export failed: ${it.message ?: "unknown error"}" }))
             }
         }
     }
@@ -643,9 +667,9 @@ class TransferController(context: Context) {
                         devices.forEach { trustStore.pin(it.recipientHandle, it.name, it.pinnedAtEpochMs) }
                         trustRevision.intValue++
                         refreshShareShortcuts()
-                        setStatus("Imported ${devices.size} address(es).")
+                        showNotice("Imported ${devices.size} address(es).")
                     },
-                    { setStatus("Import failed: ${it.message ?: "unknown error"}") },
+                    { showNotice("Import failed: ${it.message ?: "unknown error"}") },
                 )
             }
         }
@@ -716,6 +740,13 @@ class TransferController(context: Context) {
         pendingShare.clear()
         pendingShare.addAll(files)
         setStatus(str(R.string.st_ready_send, files.size))
+        // Shared in from another app, or picked on Home: straight to choosing who gets it.
+        if (files.isNotEmpty()) sendToOpen.value = true
+    }
+
+    /** Stage typed or pasted text as a ClipDrop .txt file (plan section 5). */
+    fun stageText(text: String) {
+        if (text.isNotBlank()) setPendingShare(listOf(ClipText.toOutgoing(text)))
     }
 
     /** Drop the currently staged outgoing files. */
@@ -1269,7 +1300,58 @@ class TransferController(context: Context) {
         return candidate
     }
 
+    // ---- 4.0: always ready while open (plan section 9.1) ----
+
+    private var foreground = false
+    private var networkCallback: android.net.ConnectivityManager.NetworkCallback? = null
+
+    /**
+     * The app came to the front (true) or went to the background (false). While it is in front
+     * this device listens on the LAN, polls its relay inbox and browses for nearby devices, so
+     * there is no Receive tab to remember. In-flight transfers finish either way.
+     */
+    fun setForeground(front: Boolean) {
+        if (front == foreground) return
+        foreground = front
+        if (front) {
+            startReceiving()
+            startWANReceive()
+            startDiscovery()
+            watchNetworks(true)
+        } else {
+            watchNetworks(false)
+            stopReceiving()
+            stopWANReceive()
+            stopDiscovery()
+        }
+    }
+
+    /** Keep the reachable addresses (and so the Home status) current as Wi-Fi comes and goes. */
+    private fun watchNetworks(on: Boolean) {
+        val cm = appContext.getSystemService(Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager ?: return
+        networkCallback?.let { runCatching { cm.unregisterNetworkCallback(it) } }
+        networkCallback = null
+        if (!on) return
+        val cb = object : android.net.ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: android.net.Network) { main.post { refreshAddresses() } }
+            override fun onLost(network: android.net.Network) { main.post { refreshAddresses() } }
+        }
+        val request = android.net.NetworkRequest.Builder()
+            .removeCapability(android.net.NetworkCapabilities.NET_CAPABILITY_INTERNET)
+            .build()
+        if (runCatching { cm.registerNetworkCallback(request, cb) }.isSuccess) networkCallback = cb
+    }
+
+    private fun refreshAddresses() {
+        val port = listenPort.value
+        if (!isReceiving.value || port == 0) return
+        reachableAddresses.clear()
+        reachableAddresses.addAll(LocalInterfaces.endpoints().map { "${it.ip}:$port" })
+        probeForPeers()
+    }
+
     fun stop() {
+        watchNetworks(false)
         runCatching { wan.stop() }
         runCatching { discovery.stop() }
         runCatching { beacon.close() }
@@ -1288,18 +1370,175 @@ class TransferController(context: Context) {
     /** Stop accepting new WAN transfers. In-flight receives finish. */
     fun stopWANReceive() { wan.stopReceiving(); wanReceiveActive.value = false }
 
+    // ---- 4.0 send flow: the Send-to sheet and the transfer screen (plan sections 4.3, 4.4, 8.1) ----
+
+    /** Whether the Send-to sheet is up. */
+    val sendToOpen = mutableStateOf(false)
+
+    /** Devices to tick when the Send-to sheet opens (Direct Share, Send more). */
+    val sendToPreselect = mutableStateOf<Set<String>>(emptySet())
+
+    /** The send the transfer screen shows, null when there is none. */
+    val batch = mutableStateOf<OutgoingBatch?>(null)
+
+    /** Whether the transfer screen is in front (it can be put away while a send runs). */
+    val transferVisible = mutableStateOf(false)
+
+    private var batchFiles: List<OutgoingFile> = emptyList()
+    private val lanSockets = ConcurrentHashMap<String, Socket>()
+    private val lanCancelled: MutableSet<String> = ConcurrentHashMap.newKeySet()
+
+    /** Every paired device for the Send-to sheet: nearby ones first, then by name. */
+    fun sendTargets(): List<SendTarget> {
+        val nearby = peers.map { it.recipientHandle }.toSet()
+        return trustStore.all()
+            .map { SendTarget(it.recipientHandle, it.name, it.recipientHandle in nearby) }
+            .sortedWith(compareByDescending<SendTarget> { it.nearby }.thenBy { it.name.lowercase(Locale.ROOT) })
+    }
+
     /**
-     * Send the staged files to one paired device by whichever route reaches it: the LAN when it is
-     * discovered there, the internet otherwise (plan section 8.1). Used by pair-and-send.
+     * Send the staged content to [handles], each by the route that reaches it (plan section 8.1):
+     * the LAN when it is discovered here, the internet otherwise. Opens the transfer screen.
      */
-    fun sendTo(handle: String) {
-        if (pendingShare.isEmpty()) return
-        val nearby = peers.firstOrNull { it.recipientHandle == handle }
-        if (nearby != null) {
-            sendToGroup(listOf(nearby))
-        } else {
-            trustStore.get(handle)?.let { sendWAN(it) }
+    fun sendToDevices(handles: List<String>) {
+        if (pendingShare.isEmpty() || handles.isEmpty()) return
+        if (batch.value?.active == true) {
+            showNotice(str(R.string.xfer_busy))
+            return
         }
+        val files = pendingShare.toList()
+        val nearby = handles.associateWith { h -> peers.firstOrNull { it.recipientHandle == h } }
+        val legs = handles.distinct().mapNotNull { h ->
+            val device = trustStore.get(h) ?: return@mapNotNull null
+            SendLeg(h, device.name, if (nearby[h] != null) SendRoute.NEARBY else SendRoute.INTERNET, LegState.CONNECTING)
+        }
+        if (legs.isEmpty()) return
+        batchFiles = files
+        batch.value = OutgoingBatch(System.currentTimeMillis(), files.map { it.name }, files.sumOf { it.size }, legs)
+        transferVisible.value = true
+        sendToOpen.value = false
+        sendToPreselect.value = emptySet()
+        legs.forEach { leg -> startLeg(leg.handle, nearby[leg.handle], files) }
+    }
+
+    private fun startLeg(handle: String, nearby: NsdDiscovery.Peer?, files: List<OutgoingFile>) {
+        if (nearby != null) {
+            sendLan(nearby, files)
+        } else {
+            updateLeg(handle) { it.copy(route = SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null) }
+            wan.sendWAN(files, handle, deviceName, myHandle)
+        }
+    }
+
+    /** Try a failed device again, by whichever route reaches it now. */
+    fun retryLeg(handle: String) {
+        val leg = batch.value?.legs?.firstOrNull { it.handle == handle } ?: return
+        if (leg.active || batchFiles.isEmpty()) return
+        val nearby = peers.firstOrNull { it.recipientHandle == handle }
+        updateLeg(handle) {
+            it.copy(route = if (nearby != null) SendRoute.NEARBY else SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null)
+        }
+        startLeg(handle, nearby, batchFiles)
+    }
+
+    /** One LAN send with a few retries on network errors. Falls back to the internet if it fails. */
+    private fun sendLan(peer: NsdDiscovery.Peer, files: List<OutgoingFile>) {
+        val h = peer.recipientHandle
+        lanCancelled.remove(h)
+        thread(name = "relaypony-lan-send") {
+            val result = runCatching {
+                val recipient = provider.recipientFromQr(h.toByteArray(Charsets.UTF_8))
+                var attempt = 0
+                var lastPost = 0L
+                while (true) {
+                    if (h in lanCancelled) throw java.io.IOException("stopped")
+                    try {
+                        SocketTransfer.sendTo(
+                            peer.host, peer.port, provider, listOf(recipient), deviceName, myHandle, files,
+                            peerMaxWire = peer.maxWire,
+                            onProgress = { sent, total ->
+                                val now = System.currentTimeMillis()
+                                if (now - lastPost >= 150 || sent >= total) {
+                                    lastPost = now
+                                    val p = if (total > 0) sent.toFloat() / total else 1f
+                                    main.post { updateLeg(h) { if (it.active) it.copy(state = LegState.SENDING, progress = p) else it } }
+                                }
+                            },
+                            onSocket = { lanSockets[h] = it },
+                        )
+                        break
+                    } catch (e: java.io.IOException) {
+                        if (h in lanCancelled) throw e
+                        attempt++
+                        if (attempt >= SEND_MAX_ATTEMPTS) throw e
+                        Thread.sleep(SEND_RETRY_BASE_MS * attempt)
+                    }
+                }
+            }
+            lanSockets.remove(h)
+            main.post {
+                when {
+                    h in lanCancelled -> updateLeg(h) { it.copy(state = LegState.CANCELLED) }
+                    result.isSuccess -> updateLeg(h) { it.copy(state = LegState.SENT, progress = 1f) }
+                    // Discovery can be stale (the device left the network): try the internet.
+                    else -> startLeg(h, null, files)
+                }
+            }
+        }
+    }
+
+    /** Map a WAN send's progress onto its leg. Ignored for legs going over the LAN. */
+    private fun onWanLegStatus(peer: String, st: WanStatus) {
+        updateLeg(peer) { leg ->
+            if (leg.route == SendRoute.NEARBY) return@updateLeg leg
+            when (st.kind) {
+                WanStatusKind.CONNECTING -> leg.copy(route = SendRoute.INTERNET, state = LegState.CONNECTING)
+                WanStatusKind.SENDING -> leg.copy(route = SendRoute.INTERNET_DIRECT, state = LegState.SENDING)
+                WanStatusKind.SENDING_RELAY -> leg.copy(route = SendRoute.INTERNET_RELAY, state = LegState.SENDING)
+                WanStatusKind.SENT -> leg.copy(state = LegState.SENT, progress = 1f)
+                WanStatusKind.CANCELLED -> leg.copy(state = LegState.CANCELLED)
+                WanStatusKind.SEND_FAILED, WanStatusKind.PREPARE_FAILED ->
+                    leg.copy(state = LegState.FAILED, error = st.arg)
+                else -> leg
+            }
+        }
+    }
+
+    private fun updateLeg(handle: String, change: (SendLeg) -> SendLeg) {
+        val b = batch.value ?: return
+        if (b.legs.none { it.handle == handle }) return
+        batch.value = b.copy(legs = b.legs.map { if (it.handle == handle) change(it) else it })
+    }
+
+    /** The Stop button: end every send still running. */
+    fun stopSending() {
+        val b = batch.value ?: return
+        b.legs.filter { it.active }.forEach { leg ->
+            if (leg.route == SendRoute.NEARBY) {
+                lanCancelled.add(leg.handle)
+                runCatching { lanSockets[leg.handle]?.close() }
+                updateLeg(leg.handle) { it.copy(state = LegState.CANCELLED) }
+            } else {
+                wan.cancelSend(leg.handle)
+                updateLeg(leg.handle) { if (it.active) it.copy(state = LegState.CANCELLED) else it }
+            }
+        }
+    }
+
+    /** Done on the transfer screen: the staged content is spent. */
+    fun closeTransfer() {
+        if (batch.value?.active == true) return
+        batch.value = null
+        batchFiles = emptyList()
+        transferVisible.value = false
+        pendingShare.clear()
+    }
+
+    /** "Send more": back to Home, with the same devices ticked for whatever is picked next. */
+    fun sendMore() {
+        val handles = batch.value?.legs?.map { it.handle }?.toSet() ?: emptySet()
+        closeTransfer()
+        sendToPreselect.value = handles
     }
 
     /** Send the staged files to a paired device over the internet. */

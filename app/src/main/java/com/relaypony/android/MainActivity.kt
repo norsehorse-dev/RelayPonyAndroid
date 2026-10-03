@@ -11,11 +11,14 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalResources
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.relaypony.android.transfer.SharedFiles
 import com.relaypony.android.transfer.TransferController
 import com.relaypony.android.ui.RelayPonyApp
@@ -38,6 +41,20 @@ class MainActivity : AppCompatActivity() {
             ?.removePrefix(TransferController.SHORTCUT_PREFIX)
         setContent {
             val ctrl = remember { TransferController(applicationContext).also { controller = it } }
+
+            // 4.0: ready to receive whenever the app is in front (plan section 9.1). Adding the
+            // observer replays ON_START if the activity has already started.
+            DisposableEffect(ctrl) {
+                val observer = LifecycleEventObserver { _, event ->
+                    when (event) {
+                        Lifecycle.Event.ON_START -> ctrl.setForeground(true)
+                        Lifecycle.Event.ON_STOP -> ctrl.setForeground(false)
+                        else -> Unit
+                    }
+                }
+                lifecycle.addObserver(observer)
+                onDispose { lifecycle.removeObserver(observer) }
+            }
 
             // Per-app language WITHOUT recreating the Activity. We wrap the base (Activity) context
             // so startActivity/launchers keep working, but override getResources() to resolve in the

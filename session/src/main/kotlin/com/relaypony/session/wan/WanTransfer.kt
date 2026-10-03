@@ -83,6 +83,8 @@ class WanTransfer(
     var onSendingChanged: (Set<String>) -> Unit = {}
     /** A send finished (success or failure). Posted to main. */
     var onSendFinished: (peer: String, success: Boolean) -> Unit = { _, _ -> }
+    /** Bytes handed to the stream so far out of the files' total, on the main thread, a few times a second. */
+    var onSendProgress: (peer: String, sent: Long, total: Long) -> Unit = { _, _, _ -> }
     /** A short status line for the receive UI. Posted to main. */
     var onReceiveStatus: (WanStatus) -> Unit = {}
     /** A WAN receive completed; the app files these into its inbox. Posted to main. */
@@ -262,6 +264,11 @@ class WanTransfer(
     /** True while a WAN send to [peer] is in progress. */
     fun isSending(peer: String): Boolean = sendJobs.containsKey(peer)
 
+    /** Stop the send to [peer]. Main thread. The receiver sees the stream end and drops it. */
+    fun cancelSend(peer: String) {
+        finishSend(peer, success = false, cancelled = true)
+    }
+
     private fun beginSend(peer: String, job: SendJob) {
         sendJobs[peer] = job
         onSendStatus(peer, WanStatus(WanStatusKind.CONNECTING))
@@ -328,7 +335,20 @@ class WanTransfer(
         Thread({
             try {
                 val recipient = provider.recipientFromQr(peer.toByteArray(Charsets.UTF_8))
-                val out = BackpressureOutputStream(sink = write, buffered = buffered, cancelled = { job.cancelled })
+                val total = job.files.sumOf { it.size }.coerceAtLeast(1)
+                var sent = 0L
+                var lastReport = 0L
+                val counted: (ByteArray) -> Unit = { bytes ->
+                    write(bytes)
+                    sent += bytes.size
+                    val now = System.currentTimeMillis()
+                    if (now - lastReport >= 250) {
+                        lastReport = now
+                        val s = sent.coerceAtMost(total)
+                        main.post { onSendProgress(peer, s, total) }
+                    }
+                }
+                val out = BackpressureOutputStream(sink = counted, buffered = buffered, cancelled = { job.cancelled })
                 // v1 monologue: one-directional, no reverse HELLO.
                 Session.send(provider, listOf(recipient), job.senderName, job.senderHandle, job.files, out, 1, null)
                 out.flush()
@@ -339,7 +359,7 @@ class WanTransfer(
         }, "relaypony-wan-send").apply { isDaemon = true; start() }
     }
 
-    private fun finishSend(peer: String, success: Boolean) {
+    private fun finishSend(peer: String, success: Boolean, cancelled: Boolean = false) {
         val job = sendJobs[peer] ?: return
         if (job.finished) return
         job.finished = true
@@ -349,7 +369,11 @@ class WanTransfer(
         sendJobs.remove(peer)
         sending.remove(peer); onSendingChanged(sending.toSet())
         wan.close(peer)   // fresh session for the next transfer to this peer
-        onSendStatus(peer, WanStatus(if (success) WanStatusKind.SENT else WanStatusKind.SEND_FAILED))
+        onSendStatus(peer, WanStatus(when {
+            success -> WanStatusKind.SENT
+            cancelled -> WanStatusKind.CANCELLED
+            else -> WanStatusKind.SEND_FAILED
+        }))
         onSendFinished(peer, success)
         stopPollingIfIdle()
     }

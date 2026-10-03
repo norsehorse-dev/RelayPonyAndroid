@@ -1,13 +1,13 @@
 package com.relaypony.android.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Email
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -16,10 +16,13 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -32,11 +35,14 @@ import androidx.compose.ui.res.stringResource
 import com.relaypony.android.R
 import com.relaypony.android.transfer.TransferController
 
+/** 4.0 navigation (plan section 4.1): Send and Received. Receiving runs whenever the app is open. */
 private enum class Tab(@StringRes val titleRes: Int, val icon: ImageVector) {
     Send(R.string.nav_send, Icons.Filled.Share),
-    Receive(R.string.nav_receive, Icons.Filled.Lock),
-    Inbox(R.string.nav_inbox, Icons.Filled.Email),
+    Received(R.string.nav_received, Icons.Filled.Email),
 }
+
+/** Screens that cover the tabs, opened from the top bar. */
+private enum class Overlay { None, Settings, Advanced }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,25 +60,53 @@ fun RelayPonyApp(controller: TransferController) {
 
     var tabIndex by rememberSaveable { mutableIntStateOf(0) }
     val tab = Tab.entries[tabIndex]
-    var inSettings by rememberSaveable { mutableStateOf(false) }
+    var overlay by rememberSaveable { mutableStateOf(Overlay.None) }
+    val showTransfer = controller.transferVisible.value && controller.batch.value != null
+
+    BackHandler(enabled = overlay != Overlay.None) {
+        overlay = if (overlay == Overlay.Advanced) Overlay.Settings else Overlay.None
+    }
+    BackHandler(enabled = overlay == Overlay.None && showTransfer) {
+        if (controller.batch.value?.active == true) controller.transferVisible.value = false
+        else controller.closeTransfer()
+    }
+
+    val snackbar = remember { SnackbarHostState() }
+    val notice = controller.notice.value
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            snackbar.showSnackbar(notice)
+            controller.notice.value = null
+        }
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
                     Text(
-                        if (inSettings) stringResource(R.string.settings_title)
-                        else "RelayPony \u00b7 ${stringResource(tab.titleRes)}"
+                        when (overlay) {
+                            Overlay.Settings -> stringResource(R.string.settings_title)
+                            Overlay.Advanced -> stringResource(R.string.adv_title)
+                            Overlay.None -> stringResource(R.string.app_name)
+                        },
                     )
+                },
+                navigationIcon = {
+                    if (overlay != Overlay.None) {
+                        IconButton(onClick = {
+                            overlay = if (overlay == Overlay.Advanced) Overlay.Settings else Overlay.None
+                        }) {
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.nav_back))
+                        }
+                    }
                 },
                 actions = {
                     IconButton(onClick = { controller.pair.open() }) {
                         Icon(QrCodeIcon, contentDescription = stringResource(R.string.pair_title))
                     }
-                    IconButton(onClick = { inSettings = !inSettings }) {
-                        if (inSettings) {
-                            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_title))
-                        } else {
+                    if (overlay == Overlay.None) {
+                        IconButton(onClick = { overlay = Overlay.Settings }) {
                             Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.settings_title))
                         }
                     }
@@ -80,7 +114,7 @@ fun RelayPonyApp(controller: TransferController) {
             )
         },
         bottomBar = {
-            if (!inSettings) {
+            if (overlay == Overlay.None && !showTransfer) {
                 NavigationBar {
                     Tab.entries.forEach { t ->
                         NavigationBarItem(
@@ -93,17 +127,20 @@ fun RelayPonyApp(controller: TransferController) {
                 }
             }
         },
+        snackbarHost = { SnackbarHost(snackbar) },
     ) { padding ->
         Box(Modifier.fillMaxSize().padding(padding)) {
             when {
-                inSettings -> SettingsScreen(controller)
-                tab == Tab.Send -> SendScreen(controller)
-                tab == Tab.Receive -> ReceiveScreen(controller)
+                overlay == Overlay.Settings -> SettingsScreen(controller, onAdvanced = { overlay = Overlay.Advanced })
+                overlay == Overlay.Advanced -> AdvancedScreen(controller)
+                showTransfer -> TransferProgressScreen(controller)
+                tab == Tab.Send -> HomeScreen(controller)
                 else -> InboxScreen(controller)
             }
         }
     }
 
+    SendToSheet(controller)
     PairSheet(controller)
     PairPrompts(controller)
 }
