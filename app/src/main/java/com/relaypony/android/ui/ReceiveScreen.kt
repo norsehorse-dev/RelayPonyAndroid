@@ -5,7 +5,6 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
-import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -31,22 +30,18 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.relaypony.android.R
-import com.relaypony.android.transfer.QrImage
 import com.relaypony.android.transfer.TransferController
 
 @Composable
 fun ReceiveScreen(controller: TransferController) {
-    val qrBitmap = remember { QrImage.generate(controller.myQrText()) }
     val isTv = rememberIsTelevision()
 
     // Start listening as soon as the user lands on Receive. startReceiving() is a no-op if already
@@ -81,10 +76,10 @@ fun ReceiveScreen(controller: TransferController) {
                 modifier = Modifier.weight(1f).fillMaxHeight(),
                 contentAlignment = Alignment.Center,
             ) {
-                // Reserve ~170dp for the card's texts and padding; whatever height remains goes
-                // to the QR, clamped so it stays scannable but never overflows the pane.
-                val qrSize = minOf(maxWidth - 80.dp, maxHeight - 170.dp).coerceIn(160.dp, 400.dp)
-                PairingCard(controller, qrBitmap, qrSize)
+                // Reserve ~260dp for the card's texts, buttons and padding; whatever height remains
+                // goes to the QR, clamped so it stays scannable but never overflows the pane.
+                val qrSize = minOf(maxWidth - 80.dp, maxHeight - 260.dp).coerceIn(160.dp, 400.dp)
+                PairingCard(controller, qrSize)
             }
         }
     } else {
@@ -97,7 +92,7 @@ fun ReceiveScreen(controller: TransferController) {
         ) {
             StatusAndControls(controller)
             WanReceiveCard(controller)
-            PairingCard(controller, qrBitmap, qrSize = 240.dp)
+            PairingCard(controller, qrSize = 240.dp)
             ReceiveNote(controller)
             if (controller.wifiDirect.isSupported) {
                 HorizontalDivider()
@@ -202,12 +197,12 @@ private fun StatusAndControls(controller: TransferController) {
     }
 }
 
+/**
+ * This device's live pairing QR (v2). The Receive tab already runs the LAN listener and inbox
+ * polling, so a scan here reaches this device without opening the pair sheet.
+ */
 @Composable
-private fun PairingCard(
-    controller: TransferController,
-    qrBitmap: android.graphics.Bitmap,
-    qrSize: Dp,
-) {
+private fun PairingCard(controller: TransferController, qrSize: Dp) {
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -215,16 +210,7 @@ private fun PairingCard(
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             Text(stringResource(R.string.rec_pair_title), style = MaterialTheme.typography.titleMedium)
-            Text(
-                stringResource(R.string.rec_pair_body),
-                style = MaterialTheme.typography.bodySmall,
-            )
-            Image(
-                bitmap = qrBitmap.asImageBitmap(),
-                contentDescription = stringResource(R.string.rec_qr_desc),
-                modifier = Modifier.size(qrSize),
-            )
-            Text(stringResource(R.string.ob_this_device, controller.deviceName), style = MaterialTheme.typography.bodyMedium)
+            PairQrPanel(controller, maxQr = qrSize)
         }
     }
 }

@@ -16,6 +16,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -35,9 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import com.journeyapps.barcodescanner.ScanContract
-import com.journeyapps.barcodescanner.ScanOptions
 import com.relaypony.android.R
+import com.relaypony.android.transfer.PairingController
 import com.relaypony.android.transfer.TransferController
 import com.relaypony.transport.Beacon
 
@@ -45,7 +45,7 @@ import com.relaypony.transport.Beacon
 fun SendScreen(controller: TransferController) {
     val selected = remember { mutableStateListOf<String>() }
     var byAddress by remember { mutableStateOf(false) }
-    // TV: no camera means no QR scanning; pairing still works via the on-screen SAS code path.
+    // TV: no camera means no QR scanning; pairing goes through the word code tab instead.
     val canScan = rememberHasCamera()
     // TV: Google TV has no document picker, so offering "pick files" would dead-end in a
     // "no app can perform this action" system message.
@@ -64,18 +64,10 @@ fun SendScreen(controller: TransferController) {
         controller.preselectHandle.value = null
     }
 
-    val scanLauncher = rememberLauncherForActivityResult(ScanContract()) { result ->
-        result.contents?.let { controller.stageScan(it) }
-    }
-    val scanPrompt = stringResource(R.string.send_scan_prompt)
-    fun launchScan() {
-        scanLauncher.launch(
-            ScanOptions()
-                .setBeepEnabled(false)
-                .setOrientationLocked(false)
-                .setPrompt(scanPrompt)
-        )
-    }
+    // Pairing happens in the pair sheet. Opened from here with files staged, the transfer starts
+    // as soon as the new device is pinned (pair-and-send). Scan first when there's a camera.
+    val pairTab = if (canScan) PairingController.Tab.SCAN else PairingController.Tab.WORD
+    fun openPairSheet() = controller.pair.open(pairTab, sendAfter = controller.pendingShare.isNotEmpty())
     val pickFilesLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.OpenMultipleDocuments()
     ) { uris ->
@@ -153,6 +145,10 @@ fun SendScreen(controller: TransferController) {
                 }
             }
         }
+        OutlinedButton(onClick = { openPairSheet() }, modifier = Modifier.fillMaxWidth()) {
+            Icon(QrCodeIcon, contentDescription = null, modifier = Modifier.padding(end = 8.dp))
+            Text(stringResource(R.string.send_pair_new))
+        }
         if (controller.peers.isEmpty()) {
             Text(
                 stringResource(R.string.send_looking),
@@ -187,18 +183,8 @@ fun SendScreen(controller: TransferController) {
                         }
                     }
                     if (!pinned) {
-                        Row(
-                            modifier = Modifier.padding(top = 8.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        ) {
-                            Button(onClick = { controller.stageDiscovered(peer) }) {
-                                Text(stringResource(R.string.verify_action))
-                            }
-                            if (canScan) {
-                                OutlinedButton(onClick = { launchScan() }) {
-                                    Text(stringResource(R.string.verify_scan))
-                                }
-                            }
+                        Button(onClick = { openPairSheet() }, modifier = Modifier.padding(top = 8.dp)) {
+                            Text(stringResource(R.string.send_pair_peer))
                         }
                     }
                     if (sendState != null) {
@@ -283,33 +269,6 @@ fun SendScreen(controller: TransferController) {
             HorizontalDivider()
             WifiDirectSection(controller, asSender = true)
         }
-    }
-
-    // A2: the review-and-confirm step, mirroring the iOS verify sheet. Shown for a scanned QR
-    // or a tapped discovered device; the same six digits appear on the other device.
-    controller.pendingVerify.value?.let { pv ->
-        AlertDialog(
-            onDismissRequest = { controller.dismissVerify() },
-            title = { Text(stringResource(R.string.verify_title, pv.name)) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text(stringResource(R.string.verify_code_label), style = MaterialTheme.typography.labelMedium)
-                    Text(
-                        pv.sas,
-                        style = MaterialTheme.typography.displaySmall.copy(fontFamily = FontFamily.Monospace),
-                        color = MaterialTheme.colorScheme.primary,
-                    )
-                    Text(stringResource(R.string.verify_hint, pv.name), style = MaterialTheme.typography.bodySmall)
-                    Text(pv.handle, style = MaterialTheme.typography.bodySmall)
-                }
-            },
-            confirmButton = {
-                Button(onClick = { controller.confirmVerify() }) { Text(stringResource(R.string.verify_pair)) }
-            },
-            dismissButton = {
-                TextButton(onClick = { controller.dismissVerify() }) { Text(stringResource(R.string.inbox_cancel)) }
-            },
-        )
     }
 
     if (byAddress) SendByAddressDialog(controller) { byAddress = false }

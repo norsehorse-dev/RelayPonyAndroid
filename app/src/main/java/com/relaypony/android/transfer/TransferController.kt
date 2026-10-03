@@ -327,10 +327,7 @@ class TransferController(context: Context) {
         }
     }
 
-    /** Latest pairing event for the pair sheet (P2 UI). */
-    val pairingEvent = mutableStateOf<PairingService.Event?>(null)
-
-    val pairing = PairingService(
+    val pairing: PairingService = PairingService(
         provider = provider,
         identity = identity,
         myScalar = myScalar,
@@ -349,10 +346,30 @@ class TransferController(context: Context) {
             deliverPairOverLan(peer, payload)
         },
     ).apply {
-        onEvent = { ev ->
-            pairingEvent.value = ev
-            if (ev is PairingService.Event.Paired || ev is PairingService.Event.PairedOneWay) refreshShareShortcuts()
-        }
+        onEvent = { ev -> pair.onEvent(ev) }
+    }
+
+    /** The pair sheet: QR, scan, word codes, the code comparison and pair-and-send. */
+    val pair: PairingController = PairingController(
+        service = pairing,
+        newWordCode = {
+            WordCodePairing(PakeDetails(myHandle, deviceName, myInboxId, myRelay), { relay -> relayClient(relay) })
+        },
+        relayHasMailboxes = { relayHasMailboxes },
+        myHandle = myHandle,
+        setListening = { on -> setPairSheetOpen(on) },
+        onPinned = { _, name ->
+            trustRevision.intValue++
+            refreshShareShortcuts()
+            setStatus(str(R.string.st_paired_with, name))
+        },
+        pinWordCodePeer = { peer ->
+            trustStore.pin(peer.handle, peer.name)
+            peerRoutes.put(peer.handle, PeerRoute(peer.inboxId, peer.relay))
+        },
+        main = main,
+    ).apply {
+        onPairAndSend = { handle -> sendTo(handle) }
     }
 
     init {
@@ -376,11 +393,12 @@ class TransferController(context: Context) {
     private var wantsReceivingBeforePair = true
 
     /**
-     * The pair sheet opened or closed. While it is up the inbox is polled, and the LAN listener and
-     * discovery run even if the user paused receiving, so the PAIR_REQ and PAIR_ACK can travel over
-     * Wi-Fi with no internet. Closing the sheet puts both back the way it found them.
+     * Pairing started or finished (driven by [PairingController]). While it runs the inbox is
+     * polled, and the LAN listener and discovery run even if the user paused receiving, so the
+     * PAIR_REQ and PAIR_ACK can travel over Wi-Fi with no internet. Finishing puts both back the
+     * way it found them.
      */
-    fun setPairSheetOpen(open: Boolean) {
+    private fun setPairSheetOpen(open: Boolean) {
         wan.holdPolling(open)
         if (open) {
             if (serverSocket == null) {
@@ -428,59 +446,6 @@ class TransferController(context: Context) {
                 }
             }
             target?.let { t -> runCatching { LanPair.send(t.host, t.port, payload) } }
-        }
-    }
-
-    // ---- 4.0: word-code pairing (PROTOCOL_v3.md section 7) ----
-
-    /** Where the word-code tab is: the code to show, the outcome, or null when idle (P2 UI). */
-    sealed class WordCodeState {
-        data object Working : WordCodeState()
-        data class Showing(val code: String) : WordCodeState()
-        data class Done(val result: WordCodePairing.Result) : WordCodeState()
-    }
-
-    val wordCodeState = mutableStateOf<WordCodeState?>(null)
-    @Volatile private var wordCodeCancelled = false
-
-    private fun wordCode(): WordCodePairing =
-        WordCodePairing(PakeDetails(myHandle, deviceName, myInboxId, myRelay), { relay -> relayClient(relay) })
-
-    /** Side A: get a code from this device's relay, show it, and wait for the other device. */
-    fun startWordCodeShow() {
-        wordCodeCancelled = false
-        wordCodeState.value = WordCodeState.Working
-        thread(name = "relaypony-wordcode") {
-            val wc = wordCode()
-            val shown = runCatching { wc.claim() }.getOrElse {
-                main.post { wordCodeState.value = WordCodeState.Done(WordCodePairing.Result.Failed(it.message ?: "relay unreachable")) }
-                return@thread
-            }
-            main.post { wordCodeState.value = WordCodeState.Showing(shown.code) }
-            finishWordCode(wc.runAsA(shown, cancelled = { wordCodeCancelled }))
-        }
-    }
-
-    /** Side B: pair using a code typed (or auto-typed) from the other device. */
-    fun startWordCodeEnter(code: String, relay: String = "") {
-        wordCodeCancelled = false
-        wordCodeState.value = WordCodeState.Working
-        thread(name = "relaypony-wordcode") {
-            finishWordCode(wordCode().runAsB(code, RelayUrls.normalize(relay), cancelled = { wordCodeCancelled }))
-        }
-    }
-
-    fun cancelWordCode() { wordCodeCancelled = true }
-
-    private fun finishWordCode(result: WordCodePairing.Result) {
-        main.post {
-            if (result is WordCodePairing.Result.Paired) {
-                val peer = result.peer
-                trustStore.pin(peer.handle, peer.name)
-                peerRoutes.put(peer.handle, PeerRoute(peer.inboxId, peer.relay))
-                refreshShareShortcuts()
-            }
-            wordCodeState.value = WordCodeState.Done(result)
         }
     }
 
@@ -792,6 +757,8 @@ class TransferController(context: Context) {
 
     fun startReceiving() {
         wantsReceiving.value = true
+        // Something other than pairing wants the listener now, so the end of pairing leaves it up.
+        pairStartedListener = false
         if (serverSocket != null) return
         // A stable port, not whatever the OS hands out. An ephemeral port meant this device's
         // address was only valid for one run: unusable in a firewall rule, and impossible to tell
@@ -877,6 +844,8 @@ class TransferController(context: Context) {
     }
 
     fun startDiscovery() {
+        // As above: browsing started here outlives the pair sheet.
+        pairStartedBrowsing = false
         peers.clear()
         discovery.startDiscovery { peer -> addPeer(peer) }
         acquireBeaconLock()
@@ -1288,6 +1257,20 @@ class TransferController(context: Context) {
 
     /** Stop accepting new WAN transfers. In-flight receives finish. */
     fun stopWANReceive() { wan.stopReceiving(); wanReceiveActive.value = false }
+
+    /**
+     * Send the staged files to one paired device by whichever route reaches it: the LAN when it is
+     * discovered there, the internet otherwise (plan section 8.1). Used by pair-and-send.
+     */
+    fun sendTo(handle: String) {
+        if (pendingShare.isEmpty()) return
+        val nearby = peers.firstOrNull { it.recipientHandle == handle }
+        if (nearby != null) {
+            sendToGroup(listOf(nearby))
+        } else {
+            trustStore.get(handle)?.let { sendWAN(it) }
+        }
+    }
 
     /** Send the staged files to a paired device over the internet. */
     fun sendWAN(device: com.relaypony.session.pairing.PinnedDevice) {

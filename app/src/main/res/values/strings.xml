@@ -299,4 +299,63 @@
     <string name="set_more_vaultpony" translatable="false">VaultPony</string>
     <string name="set_more_passpony" translatable="false">PassPony</string>
     <string name="set_more_scrubpony" translatable="false">ScrubPony</string>
+
+    <!-- 4.0 pair sheet (P2) -->
+    <string name="pair_title">Pair a device</string>
+    <string name="pair_tab_qr">QR code</string>
+    <string name="pair_tab_scan">Scan</string>
+    <string name="pair_tab_word">Word code</string>
+    <string name="pair_qr_body">On the other device, tap the pair icon, then Scan, and point it at this code.</string>
+    <string name="pair_qr_expires">Code expires in %1$s</string>
+    <string name="pair_qr_refresh">New code</string>
+    <string name="pair_qr_show_legacy">Other device on RelayPony 3? Show the older code</string>
+    <string name="pair_qr_legacy_body">For a device still on RelayPony 3. It pairs one way: that device can send to this one. Update it to RelayPony 4 to pair both ways.</string>
+    <string name="pair_qr_show_new">Show the current code</string>
+    <string name="pair_cam_why">RelayPony uses the camera only to read the other device\'s pairing code.</string>
+    <string name="pair_cam_allow">Allow camera</string>
+    <string name="pair_cam_denied">Camera access is off for RelayPony. Turn it on in settings, or pair with a word code instead.</string>
+    <string name="pair_cam_settings">Open settings</string>
+    <string name="pair_no_camera">This device has no camera. Show your QR code to the other device, or use a word code.</string>
+    <string name="pair_use_word">Use a word code</string>
+    <string name="pair_word_intro">No camera, or not in the same room? One device shows a short code and the other types it in.</string>
+    <string name="pair_word_show">Show a code</string>
+    <string name="pair_word_enter_label">Got a code from the other device?</string>
+    <string name="pair_word_field">Code</string>
+    <string name="pair_word_placeholder" translatable="false">47-lantern-orbit-maple</string>
+    <string name="pair_word_relay_toggle">The other device uses its own relay server</string>
+    <string name="pair_word_relay_field">Its relay server</string>
+    <string name="pair_word_pair">Pair</string>
+    <string name="pair_word_working">Connecting…</string>
+    <string name="pair_word_your_code">Your code</string>
+    <string name="pair_word_on_relay">on %1$s</string>
+    <string name="pair_word_show_hint">Type this on the other device under Pair, Word code. It works once, for 10 minutes.</string>
+    <string name="pair_word_waiting">Waiting for the other device…</string>
+    <string name="pair_copy">Copy</string>
+    <string name="pair_cancel">Cancel</string>
+    <string name="pair_try_again">Try again</string>
+    <string name="word_mismatch">That code didn\'t match. Check it and try again.</string>
+    <string name="word_timeout">Code not found or expired.</string>
+    <string name="word_relay_old">Your relay server needs updating for word codes. QR pairing still works.</string>
+    <string name="word_relay_unreachable">Can\'t reach the relay. Check your connection or your relay setting.</string>
+    <string name="word_not_a_code">That isn\'t a pairing code.</string>
+    <string name="word_own_code">That\'s this device\'s own code.</string>
+    <string name="word_unexpected">The other device sent something unexpected. Try again with a new code.</string>
+    <string name="pair_not_a_code">That isn\'t a RelayPony pairing code.</string>
+    <string name="pair_own_code">That\'s this device\'s own code. Scan the other device instead.</string>
+    <string name="pair_confirm_title">Pair with %1$s?</string>
+    <string name="pair_confirm_hint">Only confirm if %1$s shows this same number. If it isn\'t right in front of you, cancel and use a word code instead.</string>
+    <string name="pair_confirm_yes">Confirm</string>
+    <string name="pair_waiting_title">Waiting for %1$s</string>
+    <string name="pair_waiting_hint">Check that %1$s shows the same number, then confirm there.</string>
+    <string name="pair_done_title">Paired with %1$s</string>
+    <string name="pair_done_body">You can send to each other now, nearby or over the internet.</string>
+    <string name="pair_done_sending">Sending your files now.</string>
+    <string name="pair_done_one_way">%1$s is on an older RelayPony, so this pairing is one way: you can send to it. Update it to RelayPony 4 to pair both ways.</string>
+    <string name="pair_declined">Pairing was cancelled on %1$s.</string>
+    <string name="pair_declined_unnamed">Pairing was cancelled on the other device.</string>
+    <string name="pair_no_answer">%1$s didn\'t confirm in time. Try again.</string>
+    <string name="pair_done">Done</string>
+    <string name="pair_ok">OK</string>
+    <string name="send_pair_new">Pair a new device</string>
+    <string name="send_pair_peer">Pair</string>
 </resources>

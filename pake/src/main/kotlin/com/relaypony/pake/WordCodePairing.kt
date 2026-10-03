@@ -34,8 +34,11 @@ class WordCodePairing(
         /** Nobody answered in time ("Code not found or expired"). */
         data object Timeout : Result()
         data object Cancelled : Result()
-        data class Failed(val reason: String) : Result()
+        data class Failed(val reason: String, val kind: FailKind = FailKind.RELAY) : Result()
     }
+
+    /** Why an attempt failed, so the app can show its own localized text. */
+    enum class FailKind { NOT_A_CODE, OWN_CODE, UNEXPECTED, RELAY }
 
     /** Side A: claim a nameplate on this device's relay and make a code for it. */
     fun claim(): Shown {
@@ -54,7 +57,7 @@ class WordCodePairing(
 
     /** Side B: pair using a code read from the other device. [relay] is "" for the default relay. */
     fun runAsB(code: String, relay: String = "", timeoutMs: Long = 120_000, cancelled: () -> Boolean = { false }): Result {
-        val n = pakeNameplateOf(code)?.toInt() ?: return Result.Failed("That isn't a pairing code.")
+        val n = pakeNameplateOf(code)?.toInt() ?: return Result.Failed("That isn't a pairing code.", FailKind.NOT_A_CODE)
         return run(code, PakeSide.B, n, relay, timeoutMs, cancelled)
     }
 
@@ -66,7 +69,7 @@ class WordCodePairing(
         val session = try {
             PakeSession(code, side)
         } catch (e: PakeFfiException) {
-            return Result.Failed("That isn't a pairing code.")
+            return Result.Failed("That isn't a pairing code.", FailKind.NOT_A_CODE)
         }
         session.use { s ->
             try {
@@ -87,7 +90,7 @@ class WordCodePairing(
                             try {
                                 s.finish(peerMsg)
                             } catch (e: PakeFfiException) {
-                                return Result.Failed("The other device sent something unexpected.")
+                                return Result.Failed("The other device sent something unexpected.", FailKind.UNEXPECTED)
                             }
                             finished = true
                             try {
@@ -108,8 +111,8 @@ class WordCodePairing(
                         return Result.Mismatch
                     }
                     val peer = runCatching { PakeDetails.decode(String(plain, Charsets.UTF_8)) }.getOrNull()
-                        ?: return Result.Failed("The other device sent something unexpected.")
-                    if (peer.handle == me.handle) return Result.Failed("That's this device's own code.")
+                        ?: return Result.Failed("The other device sent something unexpected.", FailKind.UNEXPECTED)
+                    if (peer.handle == me.handle) return Result.Failed("That's this device's own code.", FailKind.OWN_CODE)
                     return Result.Paired(peer)
                 }
                 try { Thread.sleep(pollIntervalMs) } catch (e: InterruptedException) { return Result.Cancelled }

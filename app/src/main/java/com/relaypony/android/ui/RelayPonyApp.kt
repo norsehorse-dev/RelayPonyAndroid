@@ -66,6 +66,9 @@ fun RelayPonyApp(controller: TransferController) {
                     )
                 },
                 actions = {
+                    IconButton(onClick = { controller.pair.open() }) {
+                        Icon(QrCodeIcon, contentDescription = stringResource(R.string.pair_title))
+                    }
                     IconButton(onClick = { inSettings = !inSettings }) {
                         if (inSettings) {
                             Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.settings_title))
@@ -100,4 +103,7 @@ fun RelayPonyApp(controller: TransferController) {
             }
         }
     }
+
+    PairSheet(controller)
+    PairPrompts(controller)
 }
