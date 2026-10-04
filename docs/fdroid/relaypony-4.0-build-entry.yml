@@ -1,5 +1,6 @@
 # Draft Builds entry for fdroiddata's metadata/com.relaypony.android.yml, for the first release
-# with RelayPonyPake (4.0.0). Fill in the commit once 4.0.0 is tagged. Modeled on PassPony's
+# with RelayPonyPake (4.0.0). Fill in the commit once 4.0.0 is tagged, after tools/check_submodules.sh
+# confirms every submodule pin is on its remote. Modeled on PassPony's
 # accepted recipe: submodules for RelayPonyPake / AgePonyAndroid / PonyDirect-Kotlin, rustup and
 # cargo-ndk in prebuild, the NDK pinned to gradle.properties' ndkVersion. No build: block is
 # needed: :pake's buildPake task runs scripts/build-pake.sh during the Gradle build, after the

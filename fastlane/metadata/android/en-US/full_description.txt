@@ -1,28 +1,25 @@
-Send files from one phone to another, directly. RelayPony is a private, encrypted file transfer app that moves your photos, videos, documents, and any files device to device, with no servers, no account, and no cloud in between.
-
-Most file sharing apps upload your files to someone else's servers or bury you in ads. RelayPony does neither. Your files go straight to the person you're sending to, over your local Wi-Fi or a direct Wi-Fi Direct link, encrypted the entire way. Nothing is stored online, because there is no online.
+Send files from one device to another, privately. RelayPony is an encrypted file transfer app for photos, videos, documents, folders and text, with no account and no cloud storage.
 
 HOW IT WORKS
-The person receiving opens RelayPony and shows a QR code. You scan it once, pick your files, and send. The pairing is remembered, so the next transfer to that device is a single tap.
+Pair two devices once, by scanning a QR code or typing a short word code. After that, pick what to send and tap the device. Nearby devices connect directly over your Wi-Fi. Devices on different networks connect over the internet, directly when they can, or through a relay that only ever sees encrypted data.
 
 WHY RELAYPONY
-* Private by design. Files are end-to-end encrypted with the age encryption standard, so only the recipient can open them.
-* No servers, no account, no cloud. Nothing to sign up for, nothing uploaded, nothing tracked.
-* Works without internet. Share over local Wi-Fi, or use Wi-Fi Direct when there's no shared network at all. Built for travel, weak signal, and saving mobile data.
-* Send to several devices at once. Pair multiple phones and send to all of them together.
-* Reliable transfers. If a connection drops, RelayPony reconnects and keeps going, with real progress the whole way.
-* No ads. No tracking. No in-app purchases.
-* Open source. The code is public, so anyone can verify exactly what the app does.
+* End-to-end encrypted with the age encryption standard. Only the paired device can open what you send.
+* No account, no sign-up, no cloud copy of your files. The relay passes encrypted data along and keeps nothing.
+* Only paired devices can send to you. Anyone else is turned away and listed, so you can pair with them if you want to.
+* Run your own relay server if you prefer. It is open source too.
+* Folders, text and links. Folders arrive as a zip you can extract safely, and links arrive ready to open.
+* Wi-Fi Direct for when there is no shared network.
+* No ads, no tracking, no in-app purchases.
+* Open source, so anyone can check exactly what the app does.
 
-A FASTER WAY TO SHARE FILES
-No waiting on uploads and downloads. No sign-in. No watching your files pass through a stranger's cloud. Just pick a file and send it to the phone next to you.
+WORKS WITH IPHONE
+RelayPony 4 on Android and iPhone pair and send to each other.
 
 SPEAKS YOUR LANGUAGE
-RelayPony is available in English, Hindi, Spanish, German, French, Japanese, and Portuguese.
+RelayPony is available in English, Spanish, German, French, Japanese, Hindi and Brazilian Portuguese.
 
 PERMISSIONS, PLAINLY
-The camera is used only to scan the pairing QR code, on your device. Nearby-device and Wi-Fi access are used only to find and connect to the phone you're sending to. Your files never leave your device except as the encrypted transfer you choose to send.
-
-Send files the private way. No cloud, no account, no catch.
+The camera is used only to scan a pairing QR code, on your device. Nearby-device and Wi-Fi access are used only to find and connect to the device you are sending to. Your files leave your device only as the encrypted transfer you choose to send.
 
 relaypony.app

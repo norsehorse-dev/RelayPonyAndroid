@@ -1,0 +1,9 @@
+RelayPony 4 is a redesign with stronger pairing.
+
+• New Home: pick Files, Photos, Folder or Text, then choose who gets it
+• Receiving is automatic while the app is open
+• Pair with a QR code or a short word code, both ways at once
+• Only paired devices can send to you, unless you allow others in Advanced
+• Send folders. Text and links arrive with Copy and Open
+• Unpair from Settings, and the other device is told
+• Security hardening throughout

@@ -1,79 +1,76 @@
 # RelayPony
 
-Encrypted device-to-device file transfer for Android. Send files straight from one phone to another over your local Wi-Fi or a direct Wi-Fi Direct link. No servers, no account, no cloud — the bytes never leave the link between the two devices, and they are end-to-end encrypted the whole way.
+Encrypted device-to-device file transfer for Android. Pair two devices once, then send photos, videos, documents, folders and text between them. Nearby devices connect directly over Wi-Fi; devices on different networks connect over the internet, directly when they can and through a relay that only sees ciphertext when they can't. No account, no cloud storage, and everything is end-to-end encrypted with [age](https://age-encryption.org).
 
-RelayPony is built for places and moments where cloud file sharing is the wrong tool: no signal, expensive data, privacy-sensitive files, or simply two phones in the same room. It is free and open source, with no ads and no tracking.
+It is free and open source, with no ads and no tracking. RelayPony 4 for iPhone speaks the same protocol.
 
 Website: https://relaypony.app
 
 ## How it works
 
-1. The receiver opens the **Receive** tab and shows a pairing QR code.
-2. The sender scans it once. The recipient's identity is pinned locally, so future transfers to that device need no re-pairing.
-3. Files travel directly between the two phones — over the shared Wi-Fi network (discovered via mDNS) or over a direct Wi-Fi Direct link when there is no shared network — encrypted end to end with the [age](https://age-encryption.org) protocol.
+1. **Pair once.** One device shows a QR code and the other scans it, or one shows a short word code (like `47-lantern-orbit-maple`) and the other types it in. Both devices confirm, and each pins the other's key. Pairing works both ways at once.
+2. **Send.** Pick Files, Photos, Folder or Text on Home, then tap a paired device. RelayPony picks the route: nearby and direct on the same Wi-Fi, otherwise over the internet.
+3. **Receive.** Receiving is automatic while the app is open. Only paired devices can send to you; anyone else is turned away and listed under Received, so you can pair with them if you want to. Advanced settings can allow unpaired nearby devices.
 
 ## Features
 
-- **Direct, serverless transfer** over local Wi-Fi (mDNS/NSD discovery) or Wi-Fi Direct (no shared network needed).
-- **End-to-end encryption** with the age protocol (X25519). The transport is cipher-agnostic by construction.
-- **QR-code pairing** with trust pinned to the recipient's handle.
-- **Group send** — encrypt and push to several paired devices in parallel, with per-device status.
-- **Resilient by design** — the receiver survives a dropped or reset connection and keeps listening; the sender automatically retries transient failures with backoff.
-- **Real progress** — determinate progress on both sender and receiver, plus a graceful stop-receiving control.
-- **Inbox** — received files are listed with type, size, and time; open them, share them, or save them to Downloads (optionally automatically).
-- **Google TV / Android TV** — installable on the big screen (leanback launcher, D-pad navigation). The TV opens on Receive and shows the pairing QR; phones scan it and send straight to the television. No camera needed on the TV — pairing back to a phone works with the on-screen code.
-- **Seven languages** — English, हिन्दी, Español, Deutsch, Français, 日本語, Português (BR), switchable in-app without restarting.
-- **Light / dark theme**, adaptive launcher icon, and a privacy-first posture throughout.
+- **End-to-end encryption** with age (X25519). The relay never sees file contents or names.
+- **QR code and word-code pairing.** Word codes use a PAKE (SPAKE2, in the shared Rust core [RelayPonyPake](https://github.com/norsehorse-dev/RelayPonyPake)) so a short code is safe to read aloud.
+- **Paired-only receive.** Every send starts with a HELLO tagged with a key only the two paired devices can derive, so another device can't send while claiming to be one you paired with.
+- **Over the internet** through [PonyDirect](https://github.com/norsehorse-dev/PonyDirect-Kotlin): a direct connection when the networks allow it, a relay fallback when they don't. The relay is [self-hostable](https://github.com/norsehorse-dev/RelayPony-Relay).
+- **Folders** travel as a zip and are extracted by a strict extractor that refuses unsafe paths, links and oversized archives (tested against a shared corpus of malicious archives).
+- **Text and links** arrive as small text files with Copy, plus Open for a single link.
+- **Group send** to several paired devices at once, with per-device status.
+- **Unpair** from Settings; the other device is told and forgets this one too.
+- **Wi-Fi Direct** and **send by address** in Advanced, for networks where devices can't find each other.
+- **Identity backup** and address book export, protected by a passphrase.
+- **Google TV / Android TV** support.
+- **Seven languages**: English, हिन्दी, Español, Deutsch, Français, 日本語, Português (BR), switchable in the app.
+
+The wire protocol is specified in [`docs/PROTOCOL_v3.md`](docs/PROTOCOL_v3.md), with cross-platform test vectors in `docs/vectors/`.
 
 ## Project layout
 
-RelayPony is a small multi-module Gradle build:
+- **`app`**: the Jetpack Compose UI and Android integration (storage, sharing, permissions, QR, discovery).
+- **`session`**: sessions and transfers, pairing, the receive gate, signed HELLO, safe zip extraction and folder zipping.
+- **`transport`**: discovery and the length-framed wire protocol.
+- **`crypto`**: a thin provider over the age implementation.
+- **`pake`**: Kotlin bindings for RelayPonyPake's word-code pairing, built from Rust.
 
-- **`app`** — the Jetpack Compose UI (Material 3), `TransferController`, and Android integration (storage, sharing, permissions, QR).
-- **`session`** — session orchestration: `Session` (HELLO → MANIFEST → FILE_* → DONE), `SocketTransfer`, parallel fan-out for group send, and the Wi-Fi Direct identity handshake.
-- **`transport`** — `NsdDiscovery` (mDNS advertise/discover), `WifiDirectManager` (Wi-Fi P2P), and the length-framed wire protocol.
-- **`crypto`** — a thin `CryptoProvider` abstraction over the age implementation, so the session layer never names a specific cipher.
-
-The age implementation itself comes from [AgePony](https://github.com/norsehorse-dev/AgePonyAndroid), included as a git submodule and consumed as a Gradle composite build (see **Building**).
-
-The on-wire framing is versioned and frozen; `WIRE_VERSION` is bumped before any format change so old and new builds can detect a mismatch.
+Submodules: [AgePonyAndroid](https://github.com/norsehorse-dev/AgePonyAndroid) (age), [PonyDirect-Kotlin](https://github.com/norsehorse-dev/PonyDirect-Kotlin) (internet transport) and [RelayPonyPake](https://github.com/norsehorse-dev/RelayPonyPake) (PAKE core).
 
 ## Building
 
-Requirements: JDK 17 and the Android SDK (compileSdk 36). minSdk is 23, targetSdk 36.
+Requirements: JDK 17, the Android SDK (compileSdk 36) and the NDK named by `ndkVersion` in `gradle.properties`, plus rustup and `cargo-ndk` (`cargo install cargo-ndk@4.1.2 --locked`) for the native PAKE library. The Rust toolchain is pinned by RelayPonyPake's `rust-toolchain.toml`.
 
-RelayPony's `crypto` module depends on the age core from AgePony, which is included as a git **submodule**, so clone recursively:
+Clone with submodules:
 
 ```
 git clone --recursive https://github.com/norsehorse-dev/RelayPonyAndroid.git
 ```
 
-If you already cloned without `--recursive`, pull the submodule in:
-
-```
-git submodule update --init --recursive
-```
-
-Then build the debug APK:
+Then build:
 
 ```
 ./gradlew :app:assembleDebug
 ```
 
-`settings.gradle.kts` resolves AgePony in two ways. If a sibling checkout exists at `../AgePonyAndroid` (the local development layout) it is used, so edits to AgePony are picked up immediately. Otherwise the bundled `AgePonyAndroid` submodule is used, which is what lets a fresh clone — and a reproducible F-Droid build — work on its own. Either way, the substitution that maps `com.agepony:agepony-core` to the local `:agepony-core` project lives in the same file.
+The `:pake` module runs `scripts/build-pake.sh` during the build to cross-compile the Rust library and generate its bindings. The build always uses the pinned submodules. To develop against sibling checkouts instead, pass `-Prelaypony.useSiblings=true`; a warning says so, and the pins must be bumped before tagging (`tools/check_submodules.sh` checks this).
+
+Release APKs are built on Linux in the container described in [`docker/README.md`](docker/README.md), so they can match F-Droid's build byte for byte. `tools/verify_repro.sh` compares two builds.
 
 ## Privacy
 
-RelayPony has no backend. There are no accounts, no analytics, and no telemetry. File contents are encrypted end to end and are only ever transmitted directly between the two paired devices on the local link. Permissions (camera, nearby devices, storage) are requested only when the feature that needs them is used.
+No accounts, no analytics, no telemetry. File contents are encrypted end to end. Over the internet, the relay passes encrypted data and pairing messages along and holds them only until they are delivered. Permissions (camera, nearby devices, storage) are requested only when the feature that needs them is used.
 
 ## Localization
 
-The app ships in seven languages. The non-English translations are a solid starting point but have not yet been reviewed by native speakers — corrections and review are very welcome (each language is a single `res/values-<locale>/strings.xml` file).
+Each language is a single `app/src/main/res/values-<locale>/strings.xml` file. The translations have not all been reviewed by native speakers, so corrections are very welcome.
 
 ## Contributing
 
-Issues and pull requests are welcome. See `CONTRIBUTING.md` for the basics. Translation review, bug reports from real-world transfers, and reproducibility work toward an F-Droid release are all especially appreciated.
+Issues and pull requests are welcome. See `CONTRIBUTING.md`.
 
 ## License
 
-Apache License 2.0 — see `LICENSE`. Copyright 2026 NorseHorse.
+Apache License 2.0. See `LICENSE`. Copyright 2026 NorseHorse.
