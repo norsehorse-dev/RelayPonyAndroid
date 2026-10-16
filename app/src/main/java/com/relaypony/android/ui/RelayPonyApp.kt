@@ -32,6 +32,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.stringResource
+import com.relaypony.android.Demo
 import com.relaypony.android.R
 import com.relaypony.android.transfer.TransferController
 
@@ -58,7 +59,7 @@ fun RelayPonyApp(controller: TransferController) {
         onDispose { controller.wifiDirect.unregister() }
     }
 
-    var tabIndex by rememberSaveable { mutableIntStateOf(0) }
+    var tabIndex by rememberSaveable { mutableIntStateOf(Demo.startTab) }
     val tab = Tab.entries[tabIndex]
     var overlay by rememberSaveable { mutableStateOf(Overlay.None) }
     val showTransfer = controller.transferVisible.value && controller.batch.value != null

@@ -6,4 +6,5 @@ RelayPony 4 is a redesign with stronger pairing.
 • Only paired devices can send to you, unless you allow others in Advanced
 • Send folders. Text and links arrive with Copy and Open
 • Unpair from Settings, and the other device is told
+• Works with RelayPony 4 on iPhone
 • Security hardening throughout

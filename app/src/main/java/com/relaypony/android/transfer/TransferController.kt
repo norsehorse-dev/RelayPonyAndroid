@@ -25,6 +25,7 @@ import androidx.core.content.pm.ShortcutInfoCompat
 import androidx.core.content.pm.ShortcutManagerCompat
 import androidx.core.graphics.drawable.IconCompat
 import com.relaypony.android.MainActivity
+import com.relaypony.android.Demo
 import com.relaypony.android.R
 import com.relaypony.crypto.AgeProvider
 import com.relaypony.session.FanOut
@@ -115,7 +116,7 @@ class TransferController(context: Context) {
     val myHandle: String = String(provider.recipientToQr(myRecipient), Charsets.UTF_8)
     /** This device's raw age X25519 scalar, for the WAN-direct dev spike. */
     val myScalar: ByteArray = provider.scalarOf(identity)
-    val deviceName: String = Build.MODEL ?: "Android"
+    val deviceName: String = Demo.deviceName ?: Build.MODEL ?: "Android"
 
     private val discovery = NsdDiscovery(appContext)
 

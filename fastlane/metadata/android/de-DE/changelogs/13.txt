@@ -1,0 +1,10 @@
+RelayPony 4: neues Design, stärkere Kopplung.
+
+• Neue Startseite: Dateien, Fotos, Ordner oder Text wählen, dann das Gerät
+• Empfang automatisch, solange die App offen ist
+• Koppeln per QR-Code oder Wortcode, in beide Richtungen zugleich
+• Nur gekoppelte Geräte dürfen dir senden (Ausnahmen unter Erweitert)
+• Ordner senden. Text und Links kommen mit Kopieren und Öffnen an
+• Entkoppeln in den Einstellungen informiert das andere Gerät
+• Kompatibel mit RelayPony 4 auf dem iPhone
+• Sicherheit gehärtet

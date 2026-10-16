@@ -1,0 +1,10 @@
+RelayPony 4: novo visual e pareamento mais forte.
+
+• Nova tela inicial: escolha Arquivos, Fotos, Pasta ou Texto, depois quem recebe
+• Recebimento automático com o app aberto
+• Pareie por código QR ou código de palavras, nos dois sentidos
+• Só dispositivos pareados enviam para você, salvo se liberar em Avançado
+• Envie pastas. Texto e links chegam com Copiar e Abrir
+• Despareie em Configurações e o outro dispositivo é avisado
+• Funciona com o RelayPony 4 no iPhone
+• Mais segurança em todo o app

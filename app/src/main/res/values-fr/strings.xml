@@ -22,7 +22,7 @@
     <string name="ob_send_again">Renvoyer</string>
     <string name="ob_delivered">Remis, chiffré.</string>
     <string name="ob_device_title">Tout est prêt</string>
-    <string name="ob_device_body">Voici ton code d\'association. Quand quelqu\'un veut t\'envoyer des fichiers, il le scanne une fois.</string>
+    <string name="ob_device_body">Pour associer un autre appareil, touche l\'icône d\'association en haut de n\'importe quel écran. Une seule association suffit pour vous envoyer des fichiers à tout moment.</string>
     <string name="ob_this_device">Cet appareil : %1$s</string>
     <string name="ob_perms_title">Quelques autorisations</string>
     <string name="ob_perms_body">RelayPony ne les demande que lorsque tu utilises la fonction qui en a besoin :</string>

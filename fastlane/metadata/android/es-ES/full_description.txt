@@ -1,0 +1,29 @@
+Envía archivos de un dispositivo a otro, en privado. RelayPony es una app de transferencia de archivos cifrada para fotos, vídeos, documentos, carpetas, texto y enlaces. Empareja dos dispositivos una vez y luego envía entre ellos por Wi-Fi o por internet. Sin cuenta, sin registro, sin copia de tus archivos en la nube.
+
+UNA ALTERNATIVA A AIRDROP PARA ANDROID QUE TAMBIÉN FUNCIONA CON IPHONE
+RelayPony 4 en Android y en iPhone se emparejan y se envían archivos entre sí. De Android a Android, de Android a iPhone, de móvil a tablet: la misma app, el mismo emparejamiento.
+
+CÓMO FUNCIONA
+Empareja dos dispositivos escaneando un código QR o escribiendo un código de palabras corto. A partir de ahí, elige qué enviar y toca el dispositivo. Los dispositivos cercanos se conectan directamente por tu red Wi-Fi. Los dispositivos en redes distintas se conectan por internet, directamente cuando pueden, o a través de un relay que solo ve datos cifrados.
+
+POR QUÉ RELAYPONY
+• Cifrado de extremo a extremo con el estándar de cifrado age. Solo el dispositivo emparejado puede abrir lo que envías.
+• Sin cuenta, sin registro, sin almacenamiento en la nube. El relay pasa los datos cifrados y no guarda nada.
+• Solo los dispositivos emparejados pueden enviarte archivos. Cualquier otro se rechaza y queda en una lista, por si quieres emparejarte con él.
+• Transferencia de archivos por Wi-Fi sin límite de tamaño impuesto por la app. Envía una foto o toda tu biblioteca de vídeos.
+• Carpetas, texto y enlaces. Las carpetas llegan como un zip que puedes extraer de forma segura, y los enlaces llegan listos para abrir.
+• Wi-Fi Direct para cuando no hay una red compartida: pasa archivos sin internet.
+• Ejecuta tu propio servidor de retransmisión si lo prefieres. También es de código abierto.
+• Sin anuncios, sin rastreo, sin compras dentro de la app, sin analíticas.
+• Código abierto, así que cualquiera puede comprobar exactamente qué hace la app.
+
+COMPARTIR ARCHIVOS EN PRIVADO, NO ALOJARLOS
+Nada se sube a un servidor en el que tengas que confiar. Una transferencia cercana nunca sale de tu red. Una transferencia por internet se cifra en tu dispositivo antes de salir, y el relay no puede leerla.
+
+HABLA TU IDIOMA
+RelayPony está disponible en español, inglés, alemán, francés, japonés, hindi y portugués de Brasil.
+
+PERMISOS, SIN RODEOS
+La cámara se usa solo para escanear el código QR de emparejamiento, en tu dispositivo. El acceso a dispositivos cercanos y al Wi-Fi se usa solo para encontrar el dispositivo al que envías y conectarse a él. Tus archivos salen de tu dispositivo únicamente como la transferencia cifrada que tú decides enviar.
+
+relaypony.app

@@ -1,0 +1,1 @@
+Envoie des fichiers de téléphone à téléphone, chiffrés, sans compte ni cloud.

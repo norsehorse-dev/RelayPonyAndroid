@@ -18,7 +18,7 @@
     <string name="ob_send_again">फिर भेजें</string>
     <string name="ob_delivered">पहुँच गया, एन्क्रिप्टेड।</string>
     <string name="ob_device_title">आप तैयार हैं</string>
-    <string name="ob_device_body">यह आपका युग्मन कोड है। जब कोई आपको फ़ाइलें भेजना चाहे, तो वह इसे एक बार स्कैन करता है।</string>
+    <string name="ob_device_body">किसी अन्य डिवाइस के साथ युग्मित करने के लिए, किसी भी स्क्रीन के ऊपर युग्मन आइकन पर टैप करें। एक बार युग्मित करें, फिर आप कभी भी एक-दूसरे को भेज सकते हैं।</string>
     <string name="ob_this_device">यह डिवाइस: %1$s</string>
     <string name="ob_perms_title">कुछ अनुमतियाँ</string>
     <string name="ob_perms_body">RelayPony ये अनुमतियाँ केवल तब माँगता है जब आप उस सुविधा का उपयोग करते हैं जिसे इनकी ज़रूरत होती है:</string>
@@ -66,7 +66,7 @@
     <!-- Inbox -->
     <string name="inbox_perm_msg">स्टोरेज अनुमति अस्वीकृत</string>
     <string name="inbox_empty">लोग जो फ़ाइलें आपको भेजते हैं वे यहाँ दिखती हैं। शुरू करने के लिए दूसरे डिवाइस से युग्मित करें: ऊपर युग्मन आइकन पर टैप करें।</string>
-    <string name="inbox_header">प्राप्त \u00b7 %1$d फ़ाइल(ें)</string>
+    <string name="inbox_header">प्राप्त \u00b7 %1$d फ़ाइलें</string>
     <string name="inbox_size_from">%1$s \u00b7 %2$s से</string>
     <string name="inbox_open">खोलें</string>
     <string name="inbox_saved">सहेजा गया</string>
@@ -82,7 +82,7 @@
     <string name="st_autosave_off">ऑटो-सेव बंद</string>
     <string name="st_saved_dl">%1$s को Downloads में सहेजा गया</string>
     <string name="st_save_failed">सहेजना विफल: %1$s</string>
-    <string name="st_ready_send">%1$d फ़ाइल(ें) भेजने के लिए तैयार। युग्मित डिवाइस चुनें।</string>
+    <string name="st_ready_send">%1$d फ़ाइलें भेजने के लिए तैयार। युग्मित डिवाइस चुनें।</string>
     <string name="st_cleared">स्टेज की गई फ़ाइलें साफ़ कीं</string>
     <string name="st_read_failed">चयनित फ़ाइलें पढ़ी नहीं जा सकीं</string>
     <string name="st_paired_with">%1$s के साथ युग्मित हुआ</string>
@@ -199,7 +199,7 @@
     <string name="wan_send_failed">भेजना विफल</string>
     <string name="wan_receiving">प्राप्त किया जा रहा है…</string>
     <string name="wan_receiving_relay">रिले के ज़रिए प्राप्त किया जा रहा है…</string>
-    <string name="wan_received">%2$s से %1$d फ़ाइल(ें) प्राप्त हुईं</string>
+    <string name="wan_received">%2$s से %1$d फ़ाइलें प्राप्त हुईं</string>
     <string name="wan_receive_failed">प्राप्त करना विफल: %1$s</string>
     <string name="wan_unknown_error">अज्ञात त्रुटि</string>
     <string name="send_no_picker">इस डिवाइस पर कोई फ़ाइल ब्राउज़र उपलब्ध नहीं है। इसके बजाय अपने फ़ोन से भेजें। यह डिवाइस अब भी प्राप्त कर सकता है।</string>
@@ -304,12 +304,12 @@
     <string name="home_no_addresses">अभी कोई स्थानीय नेटवर्क पता नहीं है।</string>
     <string name="home_sending">बैकग्राउंड में भेजा जा रहा है</string>
     <string name="home_send_done">भेजना पूरा हुआ</string>
-    <string name="home_staged">%1$d फ़ाइल(ें) तैयार (%2$s)</string>
+    <string name="home_staged">%1$d फ़ाइलें तैयार (%2$s)</string>
     <string name="home_choose_device">डिवाइस चुनें</string>
     <string name="home_text_title">टेक्स्ट भेजें</string>
     <string name="home_text_from_clipboard">आपके क्लिपबोर्ड से</string>
     <string name="home_text_next">आगे</string>
-    <string name="sendto_title">%1$d फ़ाइल(ें) (%2$s) किसे भेजें</string>
+    <string name="sendto_title">%1$d फ़ाइलें (%2$s) किसे भेजें</string>
     <string name="sendto_more_files">और %1$d</string>
     <string name="sendto_no_devices">अभी कोई युग्मित डिवाइस नहीं। भेजने के लिए किसी डिवाइस को युग्मित करें।</string>
     <string name="sendto_nearby">पास में</string>
@@ -319,7 +319,7 @@
     <string name="xfer_sending">भेजा जा रहा है</string>
     <string name="xfer_sent">भेजा गया</string>
     <string name="xfer_finished">पूरा हुआ</string>
-    <string name="xfer_files">%1$d फ़ाइल(ें) · %2$s</string>
+    <string name="xfer_files">%1$d फ़ाइलें · %2$s</string>
     <string name="xfer_stop">रोकें</string>
     <string name="xfer_hide">बैकग्राउंड में भेजते रहें</string>
     <string name="xfer_send_more_one">%1$s को और भेजें</string>
@@ -373,8 +373,8 @@
     <string name="inbox_open_link">लिंक खोलें</string>
     <string name="inbox_copied">क्लिपबोर्ड पर कॉपी किया गया</string>
     <string name="inbox_link_failed">यहाँ कोई ऐप वह लिंक नहीं खोल सकता।</string>
-    <string name="ext_done">%1$d फ़ाइल(ें) %2$s में एक्सट्रैक्ट की गईं</string>
-    <string name="ext_done_skipped">%1$d फ़ाइल(ें) %2$s में एक्सट्रैक्ट की गईं। %3$d लिंक या सिस्टम फ़ाइल(ें) छोड़ दी गईं।</string>
+    <string name="ext_done">%1$d फ़ाइलें %2$s में एक्सट्रैक्ट की गईं</string>
+    <string name="ext_done_skipped">%1$d फ़ाइलें %2$s में एक्सट्रैक्ट की गईं। %3$d लिंक या सिस्टम फ़ाइलें छोड़ दी गईं।</string>
     <string name="ext_empty">%1$s में एक्सट्रैक्ट करने के लिए कुछ नहीं है।</string>
     <string name="ext_failed">%1$s एक्सट्रैक्ट नहीं किया जा सका: %2$s।</string>
     <string name="ext_why_unsafe">यह फ़ाइलों को अपने फ़ोल्डर के बाहर रखने की कोशिश करता है</string>

@@ -1,1 +1,1 @@
-RelayPony
+RelayPony Secure File Transfer

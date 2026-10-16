@@ -23,6 +23,7 @@ import com.relaypony.android.transfer.SharedFiles
 import com.relaypony.android.transfer.TransferController
 import com.relaypony.android.ui.RelayPonyApp
 import com.relaypony.android.ui.theme.RelayPonyTheme
+import kotlinx.coroutines.delay
 import java.util.Locale
 
 class MainActivity : AppCompatActivity() {
@@ -31,6 +32,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Store-screenshot demo mode (debug builds only; a no-op stub in release). Seeds its state
+        // before anything below reads preferences.
+        val demoScreen = Demo.handle(this, intent)
         applyDefaultLocale()
         enableEdgeToEdge()
         // If launched from another app's share sheet, resolve the shared files up front.
@@ -91,6 +95,14 @@ class MainActivity : AppCompatActivity() {
                     LaunchedEffect(Unit) {
                         if (sharedFiles.isNotEmpty()) ctrl.setPendingShare(sharedFiles)
                         if (preselectHandle != null) ctrl.preselectForSend(preselectHandle)
+                    }
+                    if (demoScreen != null) {
+                        // After ON_START has put discovery and listening up, so the demo state
+                        // is not cleared by them.
+                        LaunchedEffect(demoScreen) {
+                            delay(600)
+                            Demo.show(ctrl, demoScreen)
+                        }
                     }
                     RelayPonyApp(ctrl)
                 }

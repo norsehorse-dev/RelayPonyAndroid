@@ -22,7 +22,7 @@
     <string name="ob_send_again">Enviar novamente</string>
     <string name="ob_delivered">Entregue, criptografado.</string>
     <string name="ob_device_title">Tudo pronto</string>
-    <string name="ob_device_body">Este é o seu código de pareamento. Quando alguém quiser te enviar arquivos, basta escanear isto uma vez.</string>
+    <string name="ob_device_body">Para parear com outro dispositivo, toque no ícone de parear no topo de qualquer tela. Pareie uma vez e vocês podem enviar um para o outro quando quiserem.</string>
     <string name="ob_this_device">Este dispositivo: %1$s</string>
     <string name="ob_perms_title">Algumas permissões</string>
     <string name="ob_perms_body">O RelayPony pede essas permissões apenas quando você usa o recurso que precisa delas:</string>

@@ -1,0 +1,29 @@
+Envie arquivos de um dispositivo para outro, de forma privada. O RelayPony é um app de transferência de arquivos criptografada para fotos, vídeos, documentos, pastas, texto e links. Pareie dois dispositivos uma vez e depois transfira arquivos entre eles por Wi-Fi ou pela internet. Sem conta, sem cadastro, sem nuvem: nenhuma cópia dos seus arquivos fica em um servidor.
+
+UM AIRDROP PARA ANDROID QUE TAMBÉM FUNCIONA COM IPHONE
+O RelayPony 4 no Android e no iPhone pareia e envia nos dois sentidos. Passe arquivos de Android para Android, de Android para iPhone, de celular para tablet: o mesmo app, o mesmo pareamento.
+
+COMO FUNCIONA
+Pareie dois dispositivos escaneando um código QR ou digitando um código de palavras curto. Depois disso, para enviar arquivos basta escolher o que enviar e tocar no dispositivo. Dispositivos por perto se conectam diretamente pela sua rede Wi-Fi. Dispositivos em redes diferentes se conectam pela internet, diretamente quando possível, ou por um relay que só vê dados criptografados.
+
+POR QUE O RELAYPONY
+• Criptografado de ponta a ponta com o padrão de criptografia age. Só o dispositivo pareado consegue abrir o que você envia.
+• Sem conta, sem cadastro, sem armazenamento na nuvem. O relay repassa os dados criptografados e não guarda nada.
+• Só dispositivos pareados podem enviar para você. Qualquer outro é recusado e fica listado, para você parear com ele se quiser.
+• Transferência de arquivos por Wi-Fi sem limite de tamanho imposto pelo app. Envie uma foto ou a biblioteca de vídeos inteira.
+• Pastas, texto e links. Pastas chegam como um zip que você pode extrair com segurança, e links chegam prontos para abrir.
+• Wi-Fi Direct para quando não há uma rede compartilhada: transfira sem internet.
+• Rode seu próprio servidor de retransmissão, se preferir. Ele também é código aberto.
+• Sem anúncios, sem rastreamento, sem compras no app, sem análise de uso.
+• Código aberto, então qualquer pessoa pode conferir exatamente o que o app faz.
+
+COMPARTILHAR ARQUIVOS EM PRIVADO, SEM HOSPEDAGEM
+Nada é enviado para um servidor em que você precise confiar. Uma transferência por perto nunca sai da sua rede. Uma transferência pela internet é criptografada no seu dispositivo antes de ir a qualquer lugar, e o relay não consegue ler nada. Transferir arquivos de celular para celular ou de celular para tablet funciona do mesmo jeito.
+
+FALA O SEU IDIOMA
+O RelayPony está disponível em inglês, espanhol, alemão, francês, japonês, hindi e português do Brasil.
+
+PERMISSÕES, SEM RODEIOS
+A câmera é usada apenas para escanear o código QR de pareamento, no seu dispositivo. O acesso a dispositivos próximos e ao Wi-Fi é usado apenas para encontrar e conectar ao dispositivo para o qual você está enviando. Seus arquivos só saem do seu dispositivo como a transferência criptografada que você escolhe enviar.
+
+relaypony.app

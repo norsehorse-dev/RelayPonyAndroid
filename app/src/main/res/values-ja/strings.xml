@@ -22,7 +22,7 @@
     <string name="ob_send_again">もう一度送信</string>
     <string name="ob_delivered">配信完了、暗号化済み。</string>
     <string name="ob_device_title">準備完了</string>
-    <string name="ob_device_body">これはあなたのペアリングコードです。誰かがファイルを送りたいときは、これを一度スキャンします。</string>
+    <string name="ob_device_body">別のデバイスとペア設定するには、どの画面でも上部のペアアイコンをタップしてください。一度ペア設定すれば、いつでも互いに送信できます。</string>
     <string name="ob_this_device">この端末: %1$s</string>
     <string name="ob_perms_title">いくつかの権限</string>
     <string name="ob_perms_body">RelayPonyは、それを必要とする機能を使うときだけこれらを求めます:</string>

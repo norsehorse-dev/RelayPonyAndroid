@@ -1,0 +1,10 @@
+RelayPony 4 : refonte, association plus solide.
+
+• Nouvel accueil : Fichiers, Photos, Dossier ou Texte, puis qui reçoit
+• Réception automatique tant que l'app est ouverte
+• Association par code QR ou code en mots, dans les deux sens
+• Seuls les appareils associés peuvent t'envoyer, sauf autorisation dans Avancé
+• Envoi de dossiers. Texte et liens arrivent avec Copier et Ouvrir
+• Dissocier depuis les Réglages prévient l'autre appareil
+• Compatible avec RelayPony 4 sur iPhone
+• Sécurité renforcée

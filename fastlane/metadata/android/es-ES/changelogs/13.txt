@@ -1,0 +1,10 @@
+RelayPony 4: rediseño y emparejamiento más sólido.
+
+• Nuevo Inicio: elige Archivos, Fotos, Carpeta o Texto y luego a quién enviarlo
+• Recepción automática con la app abierta
+• Empareja por código QR o de palabras, en ambos sentidos a la vez
+• Solo te envían dispositivos emparejados, salvo que permitas otros en Avanzado
+• Envía carpetas. Texto y enlaces llegan con Copiar y Abrir
+• Desempareja desde Ajustes y se avisa al otro
+• Funciona con RelayPony 4 en iPhone
+• Más seguridad en toda la app

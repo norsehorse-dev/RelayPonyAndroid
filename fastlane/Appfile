@@ -1,0 +1,2 @@
+package_name("com.relaypony.android")
+json_key_file(ENV["PLAY_JSON_KEY"]) if ENV["PLAY_JSON_KEY"]

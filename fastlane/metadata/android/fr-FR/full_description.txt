@@ -1,0 +1,29 @@
+Envoie des fichiers d'un appareil à un autre, en privé. RelayPony est une app de transfert de fichiers chiffré pour les photos, vidéos, documents, dossiers, textes et liens. Associe deux appareils une seule fois, puis envoie entre eux par Wi-Fi ou par internet. Sans compte, sans inscription, sans copie de tes fichiers dans le cloud.
+
+UNE ALTERNATIVE À AIRDROP QUI MARCHE ENTRE ANDROID ET IPHONE
+RelayPony 4 sur Android et sur iPhone s'associent et s'envoient des fichiers. Android vers Android, Android vers iPhone, téléphone vers tablette : la même app, la même association.
+
+COMMENT ÇA MARCHE
+Associe deux appareils en scannant un code QR ou en saisissant un code en mots court. Ensuite, choisis quoi envoyer et touche l'appareil. Les appareils à proximité se connectent directement par ton réseau Wi-Fi. Les appareils sur des réseaux différents passent par internet, en direct quand c'est possible, sinon via un relais qui ne voit jamais que des données chiffrées.
+
+POURQUOI RELAYPONY
+• Chiffré de bout en bout avec le standard de chiffrement age. Seul l'appareil associé peut ouvrir ce que tu envoies.
+• Sans compte, sans inscription, sans stockage cloud. Le relais fait passer les données chiffrées et ne garde rien.
+• Seuls les appareils associés peuvent t'envoyer des fichiers. Les autres sont refusés et listés, pour que tu puisses les associer si tu le souhaites.
+• Transfert de fichiers par Wi-Fi sans limite de taille imposée par l'app. Envoie une photo ou toute une vidéothèque.
+• Dossiers, texte et liens. Les dossiers arrivent en zip que tu peux extraire en toute sécurité, et les liens arrivent prêts à ouvrir.
+• Wi-Fi Direct pour envoyer hors ligne, quand il n'y a pas de réseau partagé.
+• Lance ton propre serveur relais si tu préfères. Il est open source lui aussi.
+• Sans publicité, sans pistage, sans achats intégrés, sans analytique.
+• Open source, donc n'importe qui peut vérifier exactement ce que fait l'app.
+
+PARTAGER DES FICHIERS EN PRIVÉ, PAS LES HÉBERGER
+Rien n'est envoyé sur un serveur auquel tu devrais faire confiance. Un transfert à proximité ne quitte jamais ton réseau. Un transfert par internet est chiffré sur ton appareil avant de partir, et le relais ne peut pas le lire.
+
+DANS TA LANGUE
+RelayPony est disponible en français, anglais, espagnol, allemand, japonais, hindi et portugais du Brésil.
+
+LES AUTORISATIONS, SIMPLEMENT
+L'appareil photo sert uniquement à scanner un code QR d'association, sur ton appareil. L'accès aux appareils à proximité et au Wi-Fi sert uniquement à trouver l'appareil auquel tu envoies et à t'y connecter. Tes fichiers ne quittent ton appareil que sous la forme du transfert chiffré que tu choisis d'envoyer.
+
+relaypony.app

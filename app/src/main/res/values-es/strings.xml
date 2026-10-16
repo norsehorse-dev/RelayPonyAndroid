@@ -22,7 +22,7 @@
     <string name="ob_send_again">Enviar de nuevo</string>
     <string name="ob_delivered">Entregado, cifrado.</string>
     <string name="ob_device_title">Todo listo</string>
-    <string name="ob_device_body">Este es tu código de emparejamiento. Cuando alguien quiera enviarte archivos, lo escanea una vez.</string>
+    <string name="ob_device_body">Para emparejar con otro dispositivo, toca el icono de emparejar en la parte superior de cualquier pantalla. Empareja una vez y podrán enviarse archivos entre sí cuando quieran.</string>
     <string name="ob_this_device">Este dispositivo: %1$s</string>
     <string name="ob_perms_title">Algunos permisos</string>
     <string name="ob_perms_body">RelayPony los pide solo cuando usas la función que los necesita:</string>

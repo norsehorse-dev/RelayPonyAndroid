@@ -22,7 +22,7 @@
     <string name="ob_send_again">Erneut senden</string>
     <string name="ob_delivered">Zugestellt, verschlüsselt.</string>
     <string name="ob_device_title">Alles bereit</string>
-    <string name="ob_device_body">Das ist dein Kopplungscode. Wenn dir jemand Dateien senden möchte, scannt er ihn einmal.</string>
+    <string name="ob_device_body">Um ein anderes Gerät zu koppeln, tippe oben auf einem beliebigen Bildschirm auf das Koppeln-Symbol. Einmal koppeln, dann könnt ihr euch jederzeit gegenseitig senden.</string>
     <string name="ob_this_device">Dieses Gerät: %1$s</string>
     <string name="ob_perms_title">Ein paar Berechtigungen</string>
     <string name="ob_perms_body">RelayPony fragt sie nur, wenn du die Funktion nutzt, die sie braucht:</string>

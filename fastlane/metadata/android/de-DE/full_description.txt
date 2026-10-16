@@ -1,0 +1,29 @@
+Sende Dateien privat von einem Gerät zum anderen. RelayPony ist eine verschlüsselte Dateiübertragung für Fotos, Videos, Dokumente, Ordner, Text und Links. Zwei Geräte einmal koppeln, dann über WLAN oder über das Internet senden. Kein Konto, keine Anmeldung, keine Kopie deiner Dateien in der Cloud.
+
+EINE AIRDROP-ALTERNATIVE, DIE ZWISCHEN ANDROID UND IPHONE FUNKTIONIERT
+RelayPony 4 auf Android und iPhone koppelt und sendet in beide Richtungen. Android zu Android, Android zu iPhone, Handy zu Tablet: dieselbe App, dieselbe Kopplung.
+
+SO FUNKTIONIERT ES
+Kopple zwei Geräte, indem du einen QR-Code scannst oder einen kurzen Wortcode eingibst. Danach wählst du aus, was du senden willst, und tippst auf das Gerät. Geräte in der Nähe verbinden sich direkt über dein WLAN. Geräte in verschiedenen Netzwerken verbinden sich über das Internet, wenn möglich direkt, sonst über einen Relay, der immer nur verschlüsselte Daten sieht.
+
+WARUM RELAYPONY
+• Ende-zu-Ende-verschlüsselt mit dem Verschlüsselungsstandard age. Nur das gekoppelte Gerät kann öffnen, was du sendest.
+• Kein Konto, keine Anmeldung, kein Cloud-Speicher. Der Relay reicht verschlüsselte Daten weiter und behält nichts.
+• Nur gekoppelte Geräte können dir senden. Alle anderen werden abgewiesen und aufgelistet, damit du sie koppeln kannst, wenn du willst.
+• WLAN-Dateiübertragung ohne Größenlimit durch die App. Sende ein Foto oder eine ganze Videosammlung.
+• Ordner, Text und Links. Ordner kommen als ZIP an, das du sicher entpacken kannst, und Links kommen fertig zum Öffnen an.
+• Wi-Fi Direct, wenn es kein gemeinsames WLAN gibt.
+• Betreibe deinen eigenen Relay-Server, wenn du möchtest. Auch er ist quelloffen.
+• Keine Werbung, kein Tracking, keine In-App-Käufe, keine Analytics.
+• Quelloffen, damit jeder prüfen kann, was die App genau tut.
+
+DATEIEN PRIVAT TEILEN, OHNE DATEI-HOSTING
+Nichts wird auf einen Server hochgeladen, dem du vertrauen musst. Eine Übertragung in der Nähe verlässt dein Netzwerk nie. Eine Übertragung über das Internet wird auf deinem Gerät verschlüsselt, bevor sie irgendwohin geht, und der Relay kann sie nicht lesen.
+
+IN DEINER SPRACHE
+RelayPony gibt es auf Deutsch, Englisch, Spanisch, Französisch, Japanisch, Hindi und brasilianischem Portugiesisch.
+
+BERECHTIGUNGEN, KLAR ERKLÄRT
+Die Kamera wird nur zum Scannen eines Kopplungs-QR-Codes genutzt, auf deinem Gerät. Der Zugriff auf Geräte in der Nähe und WLAN dient nur dazu, das Gerät zu finden und zu verbinden, an das du sendest. Deine Dateien verlassen dein Gerät nur als die verschlüsselte Übertragung, die du selbst sendest.
+
+relaypony.app
