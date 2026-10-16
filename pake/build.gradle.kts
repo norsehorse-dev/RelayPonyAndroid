@@ -17,7 +17,7 @@ android {
     ndkVersion = providers.gradleProperty("ndkVersion").get()
 
     defaultConfig {
-        minSdk = 23
+        minSdk = 24
     }
 
     compileOptions {

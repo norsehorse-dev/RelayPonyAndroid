@@ -29,7 +29,7 @@ android {
 
     defaultConfig {
         applicationId = "com.relaypony.android"
-        minSdk = 23
+        minSdk = 24
         targetSdk = 36
         // versionCode must increase with every release on Play, F-Droid and GitHub alike.
         versionCode = 13
@@ -66,7 +66,7 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
         // Required: the app DEX step desugars agepony-core's java.util.Base64 (API 26) down to
-        // minSdk 23. Core library desugaring must be enabled in the module that consumes the
+        // minSdk 24. Core library desugaring must be enabled in the module that consumes the
         // desugared APIs, which is this application module.
         isCoreLibraryDesugaringEnabled = true
     }
@@ -74,7 +74,11 @@ android {
     buildTypes {
         release {
             vcsInfo.include = false
-            isMinifyEnabled = false
+            // R8 shrinks, optimizes and obfuscates the release build (Play's DEX optimization check).
+            // R8 is deterministic, so this keeps reproducible builds intact; keep rules are in
+            // proguard-rules.pro, which lists what each one is for.
+            isMinifyEnabled = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             // Only attach the signing config when a keystore is present, so a keystore-less
             // build (clone/CI) configures cleanly and produces an unsigned release instead of
             // failing. With keystore.properties supplied, the release AAB is signed.
