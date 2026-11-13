@@ -48,7 +48,7 @@ class WordCodePairing(
     }
 
     /** Side A: wait for the other device and pair. Always releases the nameplate. */
-    fun runAsA(shown: Shown, timeoutMs: Long = 120_000, cancelled: () -> Boolean = { false }): Result =
+    fun runAsA(shown: Shown, timeoutMs: Long = SHOWN_CODE_WAIT_MS, cancelled: () -> Boolean = { false }): Result =
         try {
             run(shown.code, PakeSide.A, shown.nameplate.number, shown.relay, timeoutMs, cancelled)
         } finally {
@@ -119,6 +119,14 @@ class WordCodePairing(
             }
             return Result.Timeout
         }
+    }
+
+    companion object {
+        /**
+         * How long the side showing a code waits for the other device: the code's 10 minute
+         * lifetime, ending a little before the relay's 600 s nameplate expiry.
+         */
+        const val SHOWN_CODE_WAIT_MS: Long = 590_000
     }
 
     private fun line(kind: String, bytes: ByteArray): ByteArray =

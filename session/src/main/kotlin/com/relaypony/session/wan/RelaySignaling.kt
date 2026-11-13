@@ -1,9 +1,9 @@
 package com.relaypony.session.wan
 
-import android.util.Base64
 import com.ponydirect.PonyDirectSignal
 import com.ponydirect.PonyDirectSignaling
 import com.ponydirect.PonyDirectWan
+import com.relaypony.session.Base64Std
 import com.relaypony.transport.SignalBlob
 import org.json.JSONArray
 import org.json.JSONObject
@@ -76,7 +76,7 @@ class RelaySignaling(
         if (seal != null) {
             val sealed = runCatching { seal(blob) }.getOrNull()
             if (sealed != null) {
-                val payload = Base64.encodeToString(sealed, Base64.NO_WRAP)
+                val payload = Base64Std.encode(sealed)
                 sentN.incrementAndGet()
                 post(JSONObject().put("op", "send").put("to", peerID).put("payload", payload).toString())
                 sealedSent = true
@@ -86,7 +86,7 @@ class RelaySignaling(
         // haven't heard from since upgrading). A 3.x receiver silently skips the sealed copy.
         if (sealedSent && sealedPeer(peerID)) return
         val line = blob.encode()
-        val payload = Base64.encodeToString(line.toByteArray(Charsets.UTF_8), Base64.NO_WRAP)
+        val payload = Base64Std.encode(line.toByteArray(Charsets.UTF_8))
         sentN.incrementAndGet()
         post(JSONObject().put("op", "send").put("to", peerID).put("payload", payload).toString())
     }
@@ -100,7 +100,7 @@ class RelaySignaling(
         val send = mboxSender
         if (r != null && send != null && runCatching { send(r.relay, r.inboxId, sealed) }.isSuccess) return
         post(JSONObject().put("op", "send").put("to", peerID)
-            .put("payload", Base64.encodeToString(sealed, Base64.NO_WRAP)).toString())
+            .put("payload", Base64Std.encode(sealed)).toString())
     }
 
     /** Poll the relay for blobs addressed to this device; returns the decoded RPS1 lines. */
@@ -111,7 +111,7 @@ class RelaySignaling(
             val out = (0 until arr.length()).mapNotNull { i ->
                 runCatching {
                     val raw = arr.getString(i)
-                    val bytes = Base64.decode(raw, Base64.NO_WRAP)
+                    val bytes = Base64Std.decode(raw)
                     // A sealed blob is a binary age file; keep it as base64 behind a marker prefix
                     // instead of mangling it through a UTF-8 decode.
                     if (SealedSignal.isSealed(bytes)) SEALED_LINE_PREFIX + raw
@@ -126,7 +126,7 @@ class RelaySignaling(
     /** The sealed age bytes behind a polled [SEALED_LINE_PREFIX] line, or null for a plaintext line. */
     fun sealedPayload(line: String): ByteArray? {
         if (!line.startsWith(SEALED_LINE_PREFIX)) return null
-        return runCatching { Base64.decode(line.substring(SEALED_LINE_PREFIX.length), Base64.NO_WRAP) }.getOrNull()
+        return runCatching { Base64Std.decode(line.substring(SEALED_LINE_PREFIX.length)) }.getOrNull()
     }
 
     /** Decode one polled blob and hand it to the path. Ignores a blob not addressed here. */

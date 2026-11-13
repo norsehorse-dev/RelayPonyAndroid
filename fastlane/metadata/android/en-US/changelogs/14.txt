@@ -1,0 +1,5 @@
+RelayPony 4.0.1 fixes sending over the internet.
+
+• Internet sends that stalled at 0% now finish
+• A leftover signal from an earlier transfer no longer starts an empty receive
+• A word code now stays open for the full 10 minutes

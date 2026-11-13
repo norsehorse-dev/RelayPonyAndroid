@@ -1,0 +1,5 @@
+RelayPony 4.0.1 corrige los envíos por internet.
+
+• Los envíos por internet que se quedaban en 0% ahora terminan
+• Una señal sobrante de una transferencia anterior ya no inicia una recepción vacía
+• Un código de palabras ahora dura los 10 minutos completos

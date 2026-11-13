@@ -303,6 +303,7 @@ class TransferController(context: Context) {
             limits = { receiveLimits() },
             isSealedPeer = { isSealedPeer(it) },
             markSealedPeer = { markSealedPeer(it) },
+            main = LooperMainThread(),
         ).apply {
             onSendStatus = { peer, st ->
                 wanSendStatus[peer] = wanStatusText(st)

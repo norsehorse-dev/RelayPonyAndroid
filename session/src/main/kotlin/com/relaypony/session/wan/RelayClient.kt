@@ -1,6 +1,6 @@
 package com.relaypony.session.wan
 
-import android.util.Base64
+import com.relaypony.session.Base64Std
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -37,7 +37,7 @@ class RelayClient(baseUrl: String = RelayConfig.baseUrl) {
     fun mboxSend(mailbox: String, payload: ByteArray) {
         val o = post(
             JSONObject().put("op", "mbox.send").put("to", mailbox)
-                .put("payload", Base64.encodeToString(payload, Base64.NO_WRAP)),
+                .put("payload", Base64Std.encode(payload)),
         ) ?: throw RelayException("unreachable")
         if (!o.optBoolean("ok")) throw RelayException(o.optString("error", "unknown"))
     }
@@ -46,7 +46,7 @@ class RelayClient(baseUrl: String = RelayConfig.baseUrl) {
     fun mboxPoll(mailbox: String): List<ByteArray> {
         val o = post(JSONObject().put("op", "mbox.poll").put("for", mailbox)) ?: return emptyList()
         val arr = o.optJSONArray("blobs") ?: return emptyList()
-        return (0 until arr.length()).mapNotNull { runCatching { Base64.decode(arr.getString(it), Base64.NO_WRAP) }.getOrNull() }
+        return (0 until arr.length()).mapNotNull { runCatching { Base64Std.decode(arr.getString(it)) }.getOrNull() }
     }
 
     fun claimNameplate(): Nameplate {

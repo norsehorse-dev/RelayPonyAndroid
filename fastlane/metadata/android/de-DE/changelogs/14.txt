@@ -1,0 +1,5 @@
+RelayPony 4.0.1 behebt Fehler beim Senden über das Internet.
+
+• Sendungen über das Internet, die bei 0 % hängen blieben, kommen jetzt an
+• Ein übrig gebliebenes Signal einer früheren Übertragung startet keinen leeren Empfang mehr
+• Ein Wortcode gilt jetzt die vollen 10 Minuten

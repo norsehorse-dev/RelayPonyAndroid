@@ -1,13 +1,12 @@
 package com.relaypony.session.wan
 
-import android.os.Handler
-import android.os.Looper
 import com.ponydirect.PonyDirectWan
 import com.relaypony.crypto.CryptoProvider
 import com.relaypony.crypto.Identity
 import com.relaypony.session.FileEntry
 import com.relaypony.session.FileNames
 import com.relaypony.session.FileSink
+import com.relaypony.session.MainThread
 import com.relaypony.session.OutgoingFile
 import com.relaypony.session.Session
 import com.relaypony.session.TransferLimits
@@ -57,6 +56,8 @@ class WanTransfer(
      *  blobs only, and its plaintext RPS1 blobs are dropped as a downgrade. */
     private val isSealedPeer: (String) -> Boolean = { false },
     private val markSealedPeer: (String) -> Unit = {},
+    /** The thread all job bookkeeping and callbacks run on: the app's UI thread. */
+    private val main: MainThread,
 ) {
     companion object {
         /**
@@ -74,8 +75,6 @@ class WanTransfer(
         val senderHandle: String,
         val files: List<ReceivedFileInfo>,
     )
-
-    private val main = Handler(Looper.getMainLooper())
 
     /** Per-peer send status ("Connecting…", "Sending…", "Sent", …). Posted to main. */
     var onSendStatus: (peer: String, status: WanStatus) -> Unit = { _, _ -> }
@@ -310,7 +309,7 @@ class WanTransfer(
         val key = PonyPeerKeyProvider(myScalar, myHandle).pairKey(peer) ?: return
         job.shipping = true
         onSendStatus(peer, WanStatus(WanStatusKind.SENDING_RELAY))
-        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer))
+        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer), main = main)
         ch.onSendComplete = { main.post { finishSend(peer, true) } }
         job.relay = ch
         produce(peer, job,
@@ -529,6 +528,10 @@ class WanTransfer(
         // First blob of a new incoming transfer (no live recv job): tear down any
         // session left over from a previous one so the offer builds a fresh session.
         if (!sendJobs.containsKey(b.from) && !recvJobs.containsKey(b.from)) {
+            // Only an offer starts an incoming transfer. An answer or candidate with no job behind
+            // it is a straggler from a send that already finished; arming a receive for it would
+            // leave a relay channel polling for a stream that never comes.
+            if (b.kind != SignalBlob.Kind.OFFER) return
             wan.close(b.from)
             ensureRecvJob(b.from)
         }
@@ -552,7 +555,7 @@ class WanTransfer(
         if (rj.relay != null) return
         val key = PonyPeerKeyProvider(myScalar, myHandle).pairKey(peer) ?: return
         onReceiveStatus(WanStatus(WanStatusKind.RECEIVING_RELAY))
-        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer))
+        val ch = RelayStreamChannel(key, myHandle, peer, peerBaseUrl = peerRelayBase(peer), main = main)
         val spool = runCatching { WanSpool.create(spoolDir(), limits()) }.getOrNull() ?: return
         ch.spool = spool
         ch.onFailed = { t -> spool.discard(); abortReceive(peer, t) }

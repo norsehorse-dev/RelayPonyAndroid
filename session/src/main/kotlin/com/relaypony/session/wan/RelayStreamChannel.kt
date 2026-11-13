@@ -1,8 +1,7 @@
 package com.relaypony.session.wan
 
-import android.os.Handler
-import android.os.Looper
-import android.util.Base64
+import com.relaypony.session.Base64Std
+import com.relaypony.session.MainThread
 import com.ponydirect.PonyDirectStreamEngine
 import org.json.JSONArray
 import org.json.JSONObject
@@ -30,6 +29,8 @@ class RelayStreamChannel(
     /** 4.0: the relay the PEER polls. Datagrams go there; this side fetches from [baseUrl]. Lets two
      *  devices on different relays still use the fallback. Defaults to the same relay (3.x). */
     peerBaseUrl: String = baseUrl,
+    /** Where callbacks are posted (the app's UI thread). */
+    private val main: MainThread,
 ) {
     var onProgress: (Int) -> Unit = {}
     var onComplete: (ByteArray) -> Unit = {}
@@ -43,7 +44,6 @@ class RelayStreamChannel(
 
     private val endpoint = "${baseUrl.trimEnd('/')}/api/signal"
     private val peerEndpoint = "${peerBaseUrl.trimEnd('/')}/api/signal"
-    private val main = Handler(Looper.getMainLooper())
     private val sessionHex: String
     private val outbuf = ArrayList<ByteArray>()          // touched only on the loop thread
     private val engine: PonyDirectStreamEngine
@@ -105,17 +105,9 @@ class RelayStreamChannel(
             }
             if (finishRequested && !finCalled && outQueue.isEmpty()) { engine.finishSending(); finCalled = true }
             engine.tick(now())
-            if (outbuf.isNotEmpty()) {
-                val all = outbuf.map { Base64.encodeToString(it, Base64.NO_WRAP) }
-                outbuf.clear()
-                var i = 0
-                while (i < all.size) {
-                    postData(all.subList(i, minOf(i + 64, all.size)))
-                    i += 64
-                }
-            }
+            flushOut()
             for (c in fetchData()) {
-                runCatching { Base64.decode(c, Base64.NO_WRAP) }.getOrNull()?.let { engine.onWireDatagram(now(), it) }
+                runCatching { Base64Std.decode(c) }.getOrNull()?.let { engine.onWireDatagram(now(), it) }
             }
             val r = engine.read(1 shl 20)
             if (r.isNotEmpty()) {
@@ -136,15 +128,50 @@ class RelayStreamChannel(
             }
             if (!recvDone && engine.recvComplete()) { recvDone = true; val full = recvBuffer.toByteArray(); main.post { onComplete(full) } }
             engineHeld = engine.sendBufferedBytes()
-            if (!sendDone && engine.sendComplete()) { sendDone = true; main.post { onSendComplete() } }
+            if (!sendDone && engine.sendComplete()) {
+                sendDone = true
+                // The sender emits FIN only once every chunk is acknowledged, which is the same moment
+                // it reports complete. Ship the FIN before saying so: the owner stops this channel on
+                // completion, and without the FIN the receiver holds all the bytes but never finishes.
+                sendFin()
+                main.post { onSendComplete() }
+            }
             if (recvDone && sendDone) running = false
             try { Thread.sleep(60) } catch (e: InterruptedException) { break }
         }
     }
 
-    private fun postData(batch: List<String>) {
+    /** Post every queued datagram to the peer's relay. False if any post went unanswered. */
+    private fun flushOut(): Boolean {
+        if (outbuf.isEmpty()) return true
+        val all = outbuf.map { Base64Std.encode(it) }
+        outbuf.clear()
+        var ok = true
+        var i = 0
+        while (i < all.size) {
+            if (!postData(all.subList(i, minOf(i + 64, all.size)))) ok = false
+            i += 64
+        }
+        return ok
+    }
+
+    /** Emit the FIN and get it onto the relay, retrying a couple of times if the relay doesn't answer. */
+    private fun sendFin() {
+        repeat(FIN_ATTEMPTS) { attempt ->
+            engine.tick(now())
+            if (flushOut()) return
+            if (attempt < FIN_ATTEMPTS - 1) try { Thread.sleep(FIN_RETRY_MS) } catch (e: InterruptedException) { return }
+        }
+    }
+
+    private fun postData(batch: List<String>): Boolean {
         val arr = JSONArray(); batch.forEach { arr.put(it) }
-        post(JSONObject().put("op", "data").put("to", peerHandle).put("session", sessionHex).put("chunks", arr).toString(), peerEndpoint)
+        return post(JSONObject().put("op", "data").put("to", peerHandle).put("session", sessionHex).put("chunks", arr).toString(), peerEndpoint) != null
+    }
+
+    private companion object {
+        const val FIN_ATTEMPTS = 3
+        const val FIN_RETRY_MS = 500L
     }
 
     private fun fetchData(): List<String> {

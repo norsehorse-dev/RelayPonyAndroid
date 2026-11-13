@@ -304,8 +304,9 @@ PAKE does the protecting.
 5. When both `data` messages open, both sides pin each other. No code comparison is needed.
 6. A releases the nameplate. If either side had content staged, the transfer starts.
 
-Timeouts: 2 minutes from the first post without a peer message ends the attempt with "Code not
-found or expired".
+Timeouts: the side showing the code waits up to the code's 10 minute lifetime (590 s, inside the
+relay's 600 s nameplate expiry). The typing side waits 2 minutes from its first post. Either one
+running out without a peer message ends the attempt with "Code not found or expired".
 
 ### 7.4 RelayPonyPake API
 
