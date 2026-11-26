@@ -116,7 +116,39 @@ class TransferController(context: Context) {
     val myHandle: String = String(provider.recipientToQr(myRecipient), Charsets.UTF_8)
     /** This device's raw age X25519 scalar, for the WAN-direct dev spike. */
     val myScalar: ByteArray = provider.scalarOf(identity)
-    val deviceName: String = Demo.deviceName ?: Build.MODEL ?: "Android"
+    /** The name used when the user hasn't set one: the phone's model. */
+    val defaultDeviceName: String = Build.MODEL ?: "Android"
+    private val deviceNameState = mutableStateOf(
+        Demo.deviceName
+            ?: settings.getString(KEY_DEVICE_NAME, null)?.takeIf { it.isNotBlank() }
+            ?: defaultDeviceName,
+    )
+    /** The name this device gives itself in discovery, pairing and transfers. */
+    val deviceName: String get() = deviceNameState.value
+
+    /**
+     * Change this device's own name; blank goes back to the model name. A device that is already
+     * paired keeps the name it pinned, so this shows up in new pairings and in discovery.
+     */
+    fun setDeviceName(name: String) {
+        val clean = cleanName(name, MAX_DEVICE_NAME)
+        if (clean.isEmpty()) settings.edit().remove(KEY_DEVICE_NAME).apply()
+        else settings.edit().putString(KEY_DEVICE_NAME, clean).apply()
+        val next = clean.ifEmpty { defaultDeviceName }
+        if (next == deviceNameState.value) return
+        deviceNameState.value = next
+        val port = listenPort.value
+        if (isReceiving.value && port > 0) {
+            runCatching { discovery.stopAdvertising() }
+            runCatching { discovery.advertise("RelayPony-$port", port, next, myHandle, pairCapable = true) }
+            runCatching { beacon.advertise(port, next, myHandle, pairCapable = true) }
+            setStatus(str(R.string.st_listening, port, next))
+        }
+    }
+
+    /** One line, no control characters, at most [max] characters. */
+    private fun cleanName(raw: String, max: Int): String =
+        raw.filter { !it.isISOControl() }.trim().take(max).trim()
 
     private val discovery = NsdDiscovery(appContext)
 
@@ -663,6 +695,23 @@ class TransferController(context: Context) {
      * needs exactly that list, because pairing is what supplies the key.
      */
     fun pairedDevices(): List<com.relaypony.session.pairing.PinnedDevice> = trustStore.all()
+
+    /** The name a paired device gave for itself, which a nickname set here may be hiding. */
+    fun givenName(handle: String): String = trustStore.givenName(handle).orEmpty()
+
+    /** Whether [handle] is shown under a nickname chosen on this device. */
+    fun hasNickname(handle: String): Boolean = trustStore.nickname(handle) != null
+
+    /**
+     * Give a paired device a name that only this device uses; blank goes back to the name the
+     * device gave. Trust stays keyed on the handle, so a nickname changes labels and nothing else.
+     */
+    fun renameDevice(handle: String, nickname: String) {
+        val clean = cleanName(nickname, MAX_DEVICE_NAME)
+        trustStore.rename(handle, if (clean == givenName(handle)) "" else clean)
+        refreshShareShortcuts()
+        trustRevision.intValue++
+    }
 
     /** Export this device's identity + paired devices to [uri] as a passphrase-protected age file. */
     fun exportIdentity(uri: Uri, passphrase: String) {
@@ -1794,6 +1843,9 @@ class TransferController(context: Context) {
         /** Must match the category in res/xml/shortcuts.xml (A4). */
         const val SHARE_CATEGORY = "com.relaypony.android.directshare.SEND"
         private const val KEY_AUTOSAVE = "autosave"
+        private const val KEY_DEVICE_NAME = "device_name"
+        /** Long enough for a real name, short enough to keep the pairing QR small. */
+        const val MAX_DEVICE_NAME = 32
         private const val KEY_ONBOARDED = "onboarded"
         private const val KEY_LANG = "lang"
         private const val KEY_THEME = "theme"

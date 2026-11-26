@@ -1,0 +1,5 @@
+RelayPony 4.1.0 ajoute des noms et une recherche pour vos appareils.
+
+• Donnez un nom à cet appareil dans les Réglages
+• Renommez n'importe quel appareil associé. Le nom reste sur votre téléphone
+• Un champ de recherche dans la liste Envoyer à et dans Avancé dès que vous avez cinq appareils associés ou plus

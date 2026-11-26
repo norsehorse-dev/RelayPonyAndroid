@@ -1,0 +1,5 @@
+RelayPony 4.1.0 bringt Namen und eine Suche für deine Geräte.
+
+• Gib diesem Gerät in den Einstellungen einen Namen
+• Benenne jedes gekoppelte Gerät um. Der Name bleibt auf deinem Telefon
+• Ein Suchfeld in der Liste „Senden an“ und unter „Erweitert“, sobald du fünf oder mehr gekoppelte Geräte hast

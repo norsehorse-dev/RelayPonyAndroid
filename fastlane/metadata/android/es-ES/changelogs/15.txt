@@ -1,0 +1,5 @@
+RelayPony 4.1.0 añade nombres y búsqueda para tus dispositivos.
+
+• Ponle nombre a este dispositivo en Ajustes
+• Cambia el nombre de cualquier dispositivo emparejado. El nombre se queda en tu teléfono
+• Un campo de búsqueda en la lista Enviar a y en Avanzado cuando tienes cinco o más dispositivos emparejados

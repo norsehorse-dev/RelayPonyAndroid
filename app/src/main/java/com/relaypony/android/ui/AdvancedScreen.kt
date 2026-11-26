@@ -15,7 +15,14 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.Box
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.Checkbox
@@ -288,12 +295,25 @@ private enum class BackupAction { EXPORT_IDENTITY, IMPORT_IDENTITY, EXPORT_ADDRE
 @Composable
 private fun PairedDevicesSection(controller: TransferController) {
     val revision = controller.trustRevision.intValue
-    val devices = remember(revision) { controller.pairedDevices().sortedBy { it.name.lowercase() } }
+    val all = remember(revision) { controller.pairedDevices().sortedBy { it.name.lowercase() } }
     var confirm by remember { mutableStateOf<PinnedDevice?>(null) }
+    var renaming by remember { mutableStateOf<PinnedDevice?>(null) }
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    var query by remember { mutableStateOf("") }
+    val searchable = all.size >= DEVICE_SEARCH_MIN
+    val devices = if (!searchable || query.isBlank()) all else all.filter {
+        matchesDeviceQuery(query, it.name, controller.givenName(it.recipientHandle))
+    }
 
     Text(stringResource(R.string.set_paired_header), style = MaterialTheme.typography.titleMedium)
-    if (devices.isEmpty()) {
+    if (all.isEmpty()) {
         Text(stringResource(R.string.set_paired_empty), style = MaterialTheme.typography.bodySmall)
+    }
+    if (searchable) {
+        DeviceSearchField(query, { query = it })
+        if (devices.isEmpty()) {
+            Text(stringResource(R.string.devices_no_match, query.trim()), style = MaterialTheme.typography.bodyMedium)
+        }
     }
     devices.forEach { device ->
         Card(modifier = Modifier.fillMaxWidth()) {
@@ -310,9 +330,53 @@ private fun PairedDevicesSection(controller: TransferController) {
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
-                TextButton(onClick = { confirm = device }) { Text(stringResource(R.string.set_paired_remove)) }
+                Box {
+                    IconButton(onClick = { menuFor = device.recipientHandle }) {
+                        Icon(Icons.Filled.MoreVert, contentDescription = stringResource(R.string.set_paired_more, device.name))
+                    }
+                    DropdownMenu(
+                        expanded = menuFor == device.recipientHandle,
+                        onDismissRequest = { menuFor = null },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.set_paired_rename)) },
+                            onClick = { menuFor = null; renaming = device },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.set_paired_remove)) },
+                            onClick = { menuFor = null; confirm = device },
+                        )
+                    }
+                }
             }
         }
+    }
+
+    renaming?.let { device ->
+        val given = controller.givenName(device.recipientHandle)
+        var draft by remember(device.recipientHandle) { mutableStateOf(device.name) }
+        AlertDialog(
+            onDismissRequest = { renaming = null },
+            title = { Text(stringResource(R.string.set_rename_title, device.name)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it.take(TransferController.MAX_DEVICE_NAME) },
+                        singleLine = true,
+                        placeholder = { Text(given) },
+                    )
+                    Text(stringResource(R.string.set_rename_help, given), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.renameDevice(device.recipientHandle, draft)
+                    renaming = null
+                }) { Text(stringResource(R.string.set_relay_save)) }
+            },
+            dismissButton = { TextButton(onClick = { renaming = null }) { Text(stringResource(R.string.pair_cancel)) } },
+        )
     }
 
     confirm?.let { device ->

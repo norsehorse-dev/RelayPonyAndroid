@@ -388,4 +388,14 @@
     <string name="ext_why_space">空き容量が足りません</string>
     <string name="ext_why_damaged">破損しているか、標準の zip ではありません</string>
     <string name="ext_why_write">ファイルを書き込めませんでした</string>
+    <string name="set_name_change">変更</string>
+    <string name="set_name_title">デバイス名</string>
+    <string name="set_name_help">これからペア設定するデバイスにはこの名前が表示されます。ペア設定済みのデバイスでは、今の名前のままです。空欄にすると、スマートフォンの機種名を使います。</string>
+    <string name="set_paired_more">%1$s のオプション</string>
+    <string name="set_paired_rename">名前を変更</string>
+    <string name="set_rename_title">%1$s の名前を変更</string>
+    <string name="set_rename_help">この名前はこのデバイスにだけ保存されます。相手のデバイスが名乗っている名前は %1$s です。空欄にするとその名前を使います。</string>
+    <string name="devices_search">デバイスを検索</string>
+    <string name="devices_search_clear">検索をクリア</string>
+    <string name="devices_no_match">「%1$s」に一致するデバイスはありません。</string>
 </resources>

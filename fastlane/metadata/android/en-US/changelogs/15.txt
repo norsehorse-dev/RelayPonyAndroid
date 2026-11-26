@@ -1,0 +1,5 @@
+RelayPony 4.1.0 adds names and search for your devices.
+
+• Name this device in Settings
+• Rename any paired device. The name stays on your phone
+• A search field in the Send-to list and in Advanced once you have five or more paired devices

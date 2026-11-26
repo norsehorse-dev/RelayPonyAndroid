@@ -388,4 +388,14 @@
     <string name="ext_why_space">es ist nicht genug freier Speicher vorhanden</string>
     <string name="ext_why_damaged">es ist beschädigt oder kein Standard-ZIP</string>
     <string name="ext_why_write">eine Datei konnte nicht geschrieben werden</string>
+    <string name="set_name_change">Ändern</string>
+    <string name="set_name_title">Gerätename</string>
+    <string name="set_name_help">Geräte, die du ab jetzt koppelst, sehen diesen Namen. Bereits gekoppelte Geräte behalten den Namen, den sie für dieses Gerät haben. Leer lassen, um den Modellnamen des Telefons zu verwenden.</string>
+    <string name="set_paired_more">Optionen für %1$s</string>
+    <string name="set_paired_rename">Umbenennen</string>
+    <string name="set_rename_title">%1$s umbenennen</string>
+    <string name="set_rename_help">Dieser Name bleibt auf diesem Gerät. Das andere Gerät nennt sich selbst %1$s. Leer lassen, um diesen Namen zu verwenden.</string>
+    <string name="devices_search">Geräte suchen</string>
+    <string name="devices_search_clear">Suche löschen</string>
+    <string name="devices_no_match">Kein Gerät passt zu \"%1$s\".</string>
 </resources>

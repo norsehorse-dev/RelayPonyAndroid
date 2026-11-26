@@ -388,4 +388,14 @@
     <string name="ext_why_space">no hay suficiente espacio libre</string>
     <string name="ext_why_damaged">está dañado o no es un zip estándar</string>
     <string name="ext_why_write">no se pudo escribir un archivo</string>
+    <string name="set_name_change">Cambiar</string>
+    <string name="set_name_title">Nombre del dispositivo</string>
+    <string name="set_name_help">Los dispositivos que emparejes a partir de ahora verán este nombre. Los que ya están emparejados conservan el nombre que tienen para este. Déjalo vacío para usar el nombre del modelo del teléfono.</string>
+    <string name="set_paired_more">Opciones de %1$s</string>
+    <string name="set_paired_rename">Cambiar nombre</string>
+    <string name="set_rename_title">Cambiar el nombre de %1$s</string>
+    <string name="set_rename_help">Este nombre se queda en este dispositivo. El otro dispositivo se llama a sí mismo %1$s. Déjalo vacío para usar ese nombre.</string>
+    <string name="devices_search">Buscar dispositivos</string>
+    <string name="devices_search_clear">Borrar búsqueda</string>
+    <string name="devices_no_match">Ningún dispositivo coincide con \"%1$s\".</string>
 </resources>

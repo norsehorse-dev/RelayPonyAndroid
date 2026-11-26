@@ -64,6 +64,7 @@ fun SettingsScreen(controller: TransferController, onAdvanced: () -> Unit) {
 
     var showLangPicker by remember { mutableStateOf(false) }
     var showThemePicker by remember { mutableStateOf(false) }
+    var showNameDialog by remember { mutableStateOf(false) }
     val autoSavePermMsg = stringResource(R.string.set_autosave_perm)
 
     val autoSavePermLauncher = rememberLauncherForActivityResult(
@@ -80,6 +81,34 @@ fun SettingsScreen(controller: TransferController, onAdvanced: () -> Unit) {
         }
     }
 
+
+    if (showNameDialog) {
+        var draft by remember { mutableStateOf(controller.deviceName) }
+        AlertDialog(
+            onDismissRequest = { showNameDialog = false },
+            title = { Text(stringResource(R.string.set_name_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it.take(TransferController.MAX_DEVICE_NAME) },
+                        singleLine = true,
+                        placeholder = { Text(controller.defaultDeviceName) },
+                    )
+                    Text(stringResource(R.string.set_name_help), style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    controller.setDeviceName(draft)
+                    showNameDialog = false
+                }) { Text(stringResource(R.string.set_relay_save)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showNameDialog = false }) { Text(stringResource(R.string.pair_cancel)) }
+            },
+        )
+    }
 
     Column(
         modifier = Modifier
@@ -146,7 +175,17 @@ fun SettingsScreen(controller: TransferController, onAdvanced: () -> Unit) {
         HorizontalDivider()
 
         Text(stringResource(R.string.set_this_device), style = MaterialTheme.typography.titleMedium)
-        Text(stringResource(R.string.set_name, controller.deviceName), style = MaterialTheme.typography.bodyMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth().clickable { showNameDialog = true },
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                stringResource(R.string.set_name, controller.deviceName),
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f).padding(end = 12.dp),
+            )
+            TextButton(onClick = { showNameDialog = true }) { Text(stringResource(R.string.set_name_change)) }
+        }
 
         HorizontalDivider()
 

@@ -388,4 +388,14 @@
     <string name="ext_why_space">l\'espace libre est insuffisant</string>
     <string name="ext_why_damaged">il est endommagé ou n\'est pas un zip standard</string>
     <string name="ext_why_write">un fichier n\'a pas pu être écrit</string>
+    <string name="set_name_change">Modifier</string>
+    <string name="set_name_title">Nom de l\'appareil</string>
+    <string name="set_name_help">Les appareils que vous associez à partir de maintenant voient ce nom. Les appareils déjà associés gardent le nom qu\'ils ont pour celui-ci. Laissez vide pour utiliser le nom de modèle du téléphone.</string>
+    <string name="set_paired_more">Options pour %1$s</string>
+    <string name="set_paired_rename">Renommer</string>
+    <string name="set_rename_title">Renommer %1$s</string>
+    <string name="set_rename_help">Ce nom reste sur cet appareil. L\'autre appareil se nomme lui-même %1$s. Laissez vide pour utiliser ce nom.</string>
+    <string name="devices_search">Rechercher des appareils</string>
+    <string name="devices_search_clear">Effacer la recherche</string>
+    <string name="devices_no_match">Aucun appareil ne correspond à \"%1$s\".</string>
 </resources>

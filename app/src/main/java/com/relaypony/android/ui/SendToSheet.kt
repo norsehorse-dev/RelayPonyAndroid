@@ -52,6 +52,12 @@ fun SendToSheet(controller: TransferController) {
     val nearbyCount = controller.peers.size
     val targets = remember(revision, nearbyCount, controller.peers.toList()) { controller.sendTargets() }
     val selected = remember { mutableStateListOf<String>().apply { addAll(controller.sendToPreselect.value) } }
+    var query by remember { mutableStateOf("") }
+    val searchable = targets.size >= DEVICE_SEARCH_MIN
+    // Ticked devices stay ticked while filtered out; the Send button still counts them.
+    val shown = if (!searchable || query.isBlank()) targets else targets.filter {
+        matchesDeviceQuery(query, it.name, controller.givenName(it.handle))
+    }
     val canScan = rememberHasCamera()
     // Plan section 10: on Wi-Fi for a while with paired devices but none seen nearby, the network
     // may be keeping devices apart (client isolation).
@@ -93,7 +99,13 @@ fun SendToSheet(controller: TransferController) {
             if (targets.isEmpty()) {
                 Text(stringResource(R.string.sendto_no_devices), style = MaterialTheme.typography.bodyMedium)
             }
-            targets.forEach { t ->
+            if (searchable) {
+                DeviceSearchField(query, { query = it })
+                if (shown.isEmpty()) {
+                    Text(stringResource(R.string.devices_no_match, query.trim()), style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+            shown.forEach { t ->
                 val ticked = t.handle in selected
                 Row(
                     modifier = Modifier

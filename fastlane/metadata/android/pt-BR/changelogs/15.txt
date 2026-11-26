@@ -1,0 +1,5 @@
+RelayPony 4.1.0 traz nomes e busca para seus dispositivos.
+
+• Dê um nome a este dispositivo nos Ajustes
+• Renomeie qualquer dispositivo pareado. O nome fica no seu telefone
+• Um campo de busca na lista Enviar para e em Avançado quando você tem cinco ou mais dispositivos pareados

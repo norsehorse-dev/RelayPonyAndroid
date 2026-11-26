@@ -411,4 +411,14 @@
     <string name="ext_why_space">there isn\'t enough free space</string>
     <string name="ext_why_damaged">it is damaged or not a standard zip</string>
     <string name="ext_why_write">a file couldn\'t be written</string>
+    <string name="set_name_change">Change</string>
+    <string name="set_name_title">Device name</string>
+    <string name="set_name_help">Devices you pair with from now on see this name. Devices already paired keep the name they have for this one. Leave it empty to use the phone\'s model name.</string>
+    <string name="set_paired_more">Options for %1$s</string>
+    <string name="set_paired_rename">Rename</string>
+    <string name="set_rename_title">Rename %1$s</string>
+    <string name="set_rename_help">This name stays on this device. The other device calls itself %1$s. Leave it empty to use that name.</string>
+    <string name="devices_search">Search devices</string>
+    <string name="devices_search_clear">Clear search</string>
+    <string name="devices_no_match">No device matches \"%1$s\".</string>
 </resources>
