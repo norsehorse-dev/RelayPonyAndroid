@@ -1,0 +1,5 @@
+RelayPony 4.2.0 adds a local network only mode.
+
+• Turn it on in Settings to stop all relay and internet connections
+• Send and receive only with devices on the same network
+• Word codes are off in this mode, so pair with a QR code

@@ -421,4 +421,9 @@
     <string name="devices_search">Search devices</string>
     <string name="devices_search_clear">Clear search</string>
     <string name="devices_no_match">No device matches \"%1$s\".</string>
+    <string name="set_lan_only_title">Local network only</string>
+    <string name="set_lan_only_detail">No relay or internet connections. Send and receive only with devices on the same network. Word codes are off, so pair with a QR code.</string>
+    <string name="sendto_not_here">Not on this network</string>
+    <string name="xfer_lan_only">%1$s isn\'t on this network, and Local network only is on.</string>
+    <string name="pair_word_lan_only">Word codes go through the relay, so they are off while Local network only is on. Pair with a QR code instead.</string>
 </resources>

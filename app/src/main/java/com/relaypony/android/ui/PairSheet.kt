@@ -369,6 +369,11 @@ private fun WordCodePanel(controller: TransferController) {
     var relay by rememberSaveable { mutableStateOf("") }
     var showRelay by rememberSaveable { mutableStateOf(false) }
 
+    if (controller.lanOnly.value) {
+        Text(stringResource(R.string.pair_word_lan_only), style = MaterialTheme.typography.bodyLarge)
+        return
+    }
+
     when (val state = pair.word.value) {
         WordCode.Working -> {
             Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {

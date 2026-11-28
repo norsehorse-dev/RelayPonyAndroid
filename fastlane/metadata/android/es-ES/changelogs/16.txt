@@ -1,0 +1,5 @@
+RelayPony 4.2.0 añade el modo Solo red local.
+
+• Actívalo en Ajustes para detener todas las conexiones al relay y a internet
+• Envía y recibe solo con dispositivos de la misma red
+• Los códigos de palabras están desactivados en este modo, así que empareja con un código QR

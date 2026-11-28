@@ -66,7 +66,9 @@ fun SendToSheet(controller: TransferController) {
         delay(10_000)
         lookedAWhile = true
     }
-    val isolationHint = lookedAWhile && targets.isNotEmpty() && targets.none { it.nearby } &&
+    val lanOnly = controller.lanOnly.value
+    // The hint ends "sending over the internet still works", which isn't true in local network only.
+    val isolationHint = !lanOnly && lookedAWhile && targets.isNotEmpty() && targets.none { it.nearby } &&
         controller.reachableAddresses.isNotEmpty()
 
     ModalBottomSheet(onDismissRequest = { controller.sendToOpen.value = false }, sheetState = sheetState) {
@@ -125,7 +127,13 @@ fun SendToSheet(controller: TransferController) {
                     Column(modifier = Modifier.weight(1f).padding(start = 4.dp)) {
                         Text(t.name, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
                         Text(
-                            stringResource(if (t.nearby) R.string.sendto_nearby else R.string.sendto_internet),
+                            stringResource(
+                                when {
+                                    t.nearby -> R.string.sendto_nearby
+                                    lanOnly -> R.string.sendto_not_here
+                                    else -> R.string.sendto_internet
+                                }
+                            ),
                             style = MaterialTheme.typography.bodySmall,
                             color = if (t.nearby) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                         )

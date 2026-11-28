@@ -32,6 +32,8 @@ class PairingController(
     /** A paired device unpaired this one; its pin and route are already gone. */
     private val onUnpinned: (handle: String) -> Unit,
     private val main: Handler,
+    /** Local network only: word codes need the relay, so they are refused while it is on. */
+    private val lanOnly: () -> Boolean = { false },
 ) {
     enum class Tab { QR, SCAN, WORD }
 
@@ -218,6 +220,10 @@ class PairingController(
 
     /** Side A: get a code from this device's relay, show it, and wait for the other device. */
     fun showWordCode() {
+        if (lanOnly()) {
+            word.value = WordCode.Failed(UiText(R.string.pair_word_lan_only))
+            return
+        }
         if (relayHasMailboxes() == false) {
             word.value = WordCode.Failed(UiText(R.string.word_relay_old))
             return
@@ -240,6 +246,10 @@ class PairingController(
 
     /** Side B: pair with a code typed (or auto-typed) from the other device. */
     fun enterWordCode(code: String, relay: String) {
+        if (lanOnly()) {
+            word.value = WordCode.Failed(UiText(R.string.pair_word_lan_only))
+            return
+        }
         val gen = ++wordGen
         wordCancelled = false
         word.value = WordCode.Working

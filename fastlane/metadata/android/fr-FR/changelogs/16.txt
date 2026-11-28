@@ -1,0 +1,5 @@
+RelayPony 4.2.0 ajoute le mode Réseau local uniquement.
+
+• Activez-le dans les Réglages pour couper toutes les connexions au relais et à Internet
+• Envoi et réception uniquement avec les appareils du même réseau
+• Les codes en mots sont désactivés dans ce mode, associez donc par code QR

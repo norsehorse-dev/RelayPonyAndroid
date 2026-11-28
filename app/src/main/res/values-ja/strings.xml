@@ -398,4 +398,9 @@
     <string name="devices_search">デバイスを検索</string>
     <string name="devices_search_clear">検索をクリア</string>
     <string name="devices_no_match">「%1$s」に一致するデバイスはありません。</string>
+    <string name="set_lan_only_title">ローカルネットワークのみ</string>
+    <string name="set_lan_only_detail">リレーにもインターネットにも接続しません。同じネットワーク上のデバイスとだけ送受信します。単語コードは使えないため、QRコードでペア設定してください。</string>
+    <string name="sendto_not_here">このネットワークにありません</string>
+    <string name="xfer_lan_only">%1$s はこのネットワークにありません。「ローカルネットワークのみ」がオンです。</string>
+    <string name="pair_word_lan_only">単語コードはリレーを経由するため、「ローカルネットワークのみ」がオンの間は使えません。QRコードでペア設定してください。</string>
 </resources>

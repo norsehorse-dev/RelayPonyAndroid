@@ -398,4 +398,9 @@
     <string name="devices_search">Rechercher des appareils</string>
     <string name="devices_search_clear">Effacer la recherche</string>
     <string name="devices_no_match">Aucun appareil ne correspond à \"%1$s\".</string>
+    <string name="set_lan_only_title">Réseau local uniquement</string>
+    <string name="set_lan_only_detail">Aucune connexion au relais ni à Internet. Envoi et réception uniquement avec les appareils du même réseau. Les codes en mots sont désactivés, associez donc par code QR.</string>
+    <string name="sendto_not_here">Pas sur ce réseau</string>
+    <string name="xfer_lan_only">%1$s n\'est pas sur ce réseau, et Réseau local uniquement est activé.</string>
+    <string name="pair_word_lan_only">Les codes en mots passent par le relais, ils sont donc désactivés tant que Réseau local uniquement est activé. Associez plutôt par code QR.</string>
 </resources>

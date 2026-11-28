@@ -398,4 +398,9 @@
     <string name="devices_search">Buscar dispositivos</string>
     <string name="devices_search_clear">Borrar búsqueda</string>
     <string name="devices_no_match">Ningún dispositivo coincide con \"%1$s\".</string>
+    <string name="set_lan_only_title">Solo red local</string>
+    <string name="set_lan_only_detail">Sin conexiones al relay ni a internet. Envía y recibe solo con dispositivos de la misma red. Los códigos de palabras están desactivados, así que empareja con un código QR.</string>
+    <string name="sendto_not_here">No está en esta red</string>
+    <string name="xfer_lan_only">%1$s no está en esta red, y Solo red local está activado.</string>
+    <string name="pair_word_lan_only">Los códigos de palabras pasan por el relay, así que están desactivados mientras Solo red local está activado. Empareja con un código QR.</string>
 </resources>

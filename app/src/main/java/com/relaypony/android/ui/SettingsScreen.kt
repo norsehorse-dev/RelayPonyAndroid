@@ -12,6 +12,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
@@ -170,6 +172,25 @@ fun SettingsScreen(controller: TransferController, onAdvanced: () -> Unit) {
                 )
             }
             Switch(checked = controller.autoSave.value, onCheckedChange = { toggleAutoSave(it) })
+        }
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .toggleable(
+                    value = controller.lanOnly.value,
+                    role = Role.Switch,
+                    onValueChange = { controller.setLanOnly(it) },
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Column(modifier = Modifier.weight(1f).padding(end = 12.dp)) {
+                Text(stringResource(R.string.set_lan_only_title), style = MaterialTheme.typography.bodyLarge)
+                Text(
+                    stringResource(R.string.set_lan_only_detail),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            Switch(checked = controller.lanOnly.value, onCheckedChange = null)
         }
 
         HorizontalDivider()

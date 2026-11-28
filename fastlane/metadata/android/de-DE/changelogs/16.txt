@@ -1,0 +1,5 @@
+RelayPony 4.2.0 bringt den Modus „Nur lokales Netzwerk“.
+
+• Schalte ihn in den Einstellungen ein, um alle Verbindungen zum Relay und ins Internet zu stoppen
+• Senden und Empfangen nur mit Geräten im selben Netzwerk
+• Wortcodes sind in diesem Modus aus, kopple also per QR-Code

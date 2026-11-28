@@ -32,8 +32,8 @@ android {
         minSdk = 24
         targetSdk = 36
         // versionCode must increase with every release on Play, F-Droid and GitHub alike.
-        versionCode = 15
-        versionName = "4.1.0"
+        versionCode = 16
+        versionName = "4.2.0"
 
         ndk {
             // 4.0 ships a native library for the first time (RelayPonyPake, word-code pairing),

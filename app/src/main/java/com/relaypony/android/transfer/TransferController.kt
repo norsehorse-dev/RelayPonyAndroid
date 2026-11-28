@@ -85,6 +85,13 @@ class TransferController(context: Context) {
     private val inboxStore = PrefsInboxStore(appContext)
     private val settings = appContext.getSharedPreferences("relaypony_settings", Context.MODE_PRIVATE)
 
+    /**
+     * Local network only (4.2, issue #4). While on, this device makes no relay or STUN connection
+     * at all: no inbox polling, no relay feature check, no word codes, no internet sends, and
+     * pairing and unpairing notices travel over the LAN alone. Everything on the LAN works as usual.
+     */
+    val lanOnly = mutableStateOf(settings.getBoolean(KEY_LAN_ONLY, false))
+
     /** Peers seen sending sealed (4.0) WAN signaling. They get sealed blobs only, and plaintext
      *  blobs claiming to be from them are dropped. Kept apart from the trust store so the pinned
      *  model and its backups don't change. */
@@ -384,6 +391,7 @@ class TransferController(context: Context) {
         private set
 
     private fun checkRelayFeatures() {
+        if (lanOnly.value) return
         thread(name = "relaypony-relay-info") {
             val info = relayClient(myRelay).info()
             relayHasMailboxes = info?.hasMailboxes ?: false
@@ -403,8 +411,11 @@ class TransferController(context: Context) {
         mailer = { peer, relay, inbox, payload ->
             // Both paths, always: the relay reaches a peer anywhere, the LAN reaches one with no
             // internet at all. The receiver handles whichever copy lands first and ignores the other.
-            thread(name = "relaypony-pair-send") {
-                runCatching { relayClient(relay).mboxSend(inbox, payload) }
+            // Local network only: the LAN copy alone.
+            if (!lanOnly.value) {
+                thread(name = "relaypony-pair-send") {
+                    runCatching { relayClient(relay).mboxSend(inbox, payload) }
+                }
             }
             deliverPairOverLan(peer, payload)
         },
@@ -433,18 +444,19 @@ class TransferController(context: Context) {
         },
         onUnpinned = { handle -> afterUnpin(handle) },
         main = main,
+        lanOnly = { lanOnly.value },
     ).apply {
         onPairAndSend = { handle -> sendToDevices(listOf(handle)) }
     }
 
     init {
         wan.hooks = object : WanTransfer.InboxHooks {
-            override fun myInbox(): String? = if (relayHasMailboxes == true) myInboxId else null
+            override fun myInbox(): String? = if (relayHasMailboxes == true && !lanOnly.value) myInboxId else null
             override fun myRelayClient(): RelayClient = relayClient(myRelay)
             override fun route(peer: String): PeerRoute? = peerRoutes.get(peer)
             override fun clientFor(relay: String): RelayClient = relayClient(relay)
             override fun announcement(peer: String): ByteArray? =
-                if (relayHasMailboxes == true && trustStore.isPinned(peer)) pairing.inboxAnnouncement(peer) else null
+                if (relayHasMailboxes == true && !lanOnly.value && trustStore.isPinned(peer)) pairing.inboxAnnouncement(peer) else null
             override fun peerUsesMyInbox(peer: String): Boolean = inboxUsers.getBoolean(peer, false)
             override fun markPeerUsesMyInbox(peer: String) { inboxUsers.edit().putBoolean(peer, true).apply() }
         }
@@ -534,11 +546,13 @@ class TransferController(context: Context) {
         val route = peerRoutes.get(handle)
         pairing.forget(handle)
         if (notice != null) {
-            if (route != null) {
-                thread(name = "relaypony-unpair") { runCatching { relayClient(route.relay).mboxSend(route.inboxId, notice) } }
+            if (!lanOnly.value) {
+                if (route != null) {
+                    thread(name = "relaypony-unpair") { runCatching { relayClient(route.relay).mboxSend(route.inboxId, notice) } }
+                }
+                // The route is gone now, so this one goes to the handle queue.
+                wan.sendSealed(handle, notice)
             }
-            // The route is gone now, so this one goes to the handle queue.
-            wan.sendSealed(handle, notice)
             deliverPairOverLan(handle, notice)
         }
         afterUnpin(handle)
@@ -565,7 +579,7 @@ class TransferController(context: Context) {
      * way it found them.
      */
     private fun setPairSheetOpen(open: Boolean) {
-        wan.holdPolling(open)
+        wan.holdPolling(open && !lanOnly.value)
         if (open) {
             if (serverSocket == null) {
                 wantsReceivingBeforePair = wantsReceiving.value
@@ -1503,7 +1517,31 @@ class TransferController(context: Context) {
     // --- WAN transfer (paired, not on the same LAN) ---
 
     /** Begin accepting incoming WAN transfers while the Receive tab is open. */
-    fun startWANReceive() { wan.startReceiving(); wanReceiveActive.value = true }
+    fun startWANReceive() {
+        if (lanOnly.value) return
+        wan.startReceiving(); wanReceiveActive.value = true
+    }
+
+    /**
+     * Turn local network only on or off. On stops the relay inbox poll straight away; off puts
+     * the relay back the way an app start would. A transfer already running over the internet is
+     * left to finish.
+     */
+    fun setLanOnly(on: Boolean) {
+        if (on == lanOnly.value) return
+        settings.edit().putBoolean(KEY_LAN_ONLY, on).apply()
+        if (on) {
+            lanOnly.value = true
+            wan.holdPolling(false)
+            stopWANReceive()
+            relayHasMailboxes = null
+        } else {
+            lanOnly.value = false
+            checkRelayFeatures()
+            if (foreground) startWANReceive()
+            if (pair.sheetOpen.value) wan.holdPolling(true)
+        }
+    }
 
     /** Stop accepting new WAN transfers. In-flight receives finish. */
     fun stopWANReceive() { wan.stopReceiving(); wanReceiveActive.value = false }
@@ -1548,7 +1586,7 @@ class TransferController(context: Context) {
         val nearby = handles.associateWith { h -> peers.firstOrNull { it.recipientHandle == h } }
         val legs = handles.distinct().mapNotNull { h ->
             val device = trustStore.get(h) ?: return@mapNotNull null
-            SendLeg(h, device.name, if (nearby[h] != null) SendRoute.NEARBY else SendRoute.INTERNET, LegState.CONNECTING)
+            SendLeg(h, device.name, if (nearby[h] != null || lanOnly.value) SendRoute.NEARBY else SendRoute.INTERNET, LegState.CONNECTING)
         }
         if (legs.isEmpty()) return
         batchFiles = files
@@ -1562,6 +1600,11 @@ class TransferController(context: Context) {
     private fun startLeg(handle: String, nearby: NsdDiscovery.Peer?, files: List<OutgoingFile>) {
         if (nearby != null) {
             sendLan(nearby, files)
+        } else if (lanOnly.value) {
+            // No internet route to fall back to: say why instead of trying the relay.
+            updateLeg(handle) {
+                it.copy(route = SendRoute.NEARBY, state = LegState.FAILED, progress = null, error = str(R.string.xfer_lan_only, it.name))
+            }
         } else {
             updateLeg(handle) { it.copy(route = SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null) }
             wan.sendWAN(files, handle, deviceName, myHandle)
@@ -1574,7 +1617,7 @@ class TransferController(context: Context) {
         if (leg.active || batchFiles.isEmpty()) return
         val nearby = peers.firstOrNull { it.recipientHandle == handle }
         updateLeg(handle) {
-            it.copy(route = if (nearby != null) SendRoute.NEARBY else SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null, refused = false)
+            it.copy(route = if (nearby != null || lanOnly.value) SendRoute.NEARBY else SendRoute.INTERNET, state = LegState.CONNECTING, progress = null, error = null, refused = false)
         }
         startLeg(handle, nearby, batchFiles)
     }
@@ -1690,6 +1733,7 @@ class TransferController(context: Context) {
     /** Send the staged files to a paired device over the internet. */
     fun sendWAN(device: com.relaypony.session.pairing.PinnedDevice) {
         if (pendingShare.isEmpty()) { setStatus(str(R.string.st_pick_files_first)); return }
+        if (lanOnly.value) { setStatus(str(R.string.xfer_lan_only, device.name)); return }
         wan.sendWAN(pendingShare.toList(), device.recipientHandle, deviceName, myHandle)
     }
 
@@ -1844,6 +1888,7 @@ class TransferController(context: Context) {
         const val SHARE_CATEGORY = "com.relaypony.android.directshare.SEND"
         private const val KEY_AUTOSAVE = "autosave"
         private const val KEY_DEVICE_NAME = "device_name"
+        private const val KEY_LAN_ONLY = "lan_only"
         /** Long enough for a real name, short enough to keep the pairing QR small. */
         const val MAX_DEVICE_NAME = 32
         private const val KEY_ONBOARDED = "onboarded"

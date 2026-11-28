@@ -398,4 +398,9 @@
     <string name="devices_search">Geräte suchen</string>
     <string name="devices_search_clear">Suche löschen</string>
     <string name="devices_no_match">Kein Gerät passt zu \"%1$s\".</string>
+    <string name="set_lan_only_title">Nur lokales Netzwerk</string>
+    <string name="set_lan_only_detail">Keine Verbindungen zum Relay oder ins Internet. Senden und Empfangen nur mit Geräten im selben Netzwerk. Wortcodes sind aus, kopple also per QR-Code.</string>
+    <string name="sendto_not_here">Nicht in diesem Netzwerk</string>
+    <string name="xfer_lan_only">%1$s ist nicht in diesem Netzwerk, und „Nur lokales Netzwerk“ ist an.</string>
+    <string name="pair_word_lan_only">Wortcodes laufen über das Relay und sind daher aus, solange „Nur lokales Netzwerk“ an ist. Kopple stattdessen per QR-Code.</string>
 </resources>
